@@ -15,12 +15,11 @@ from . import module3_eol
 def display_banner():
     """Display the ASCII art banner for NTL-SysToolbox"""
     banner = """
-    ╔══════════════════════════════════════════════════════════════╗
-    ║                                                              ║
-    ║              NTL-SysToolbox v1.0                            ║
-    ║         System Monitoring & Analysis Platform               ║
-    ║                                                              ║
-    ╚══════════════════════════════════════════════════════════════╝
+╔══════════════════════════════════════════════════════════════╗
+║                                                              ║
+║                     NTL-SysToolbox v1.0                      ║
+║                                                              ║
+╚══════════════════════════════════════════════════════════════╝
     """
     print(banner)
 
@@ -28,9 +27,9 @@ def display_banner():
 def display_main_menu():
     """Display the main menu and return user choice"""
     display_banner()
-    print("\n" + "="*60)
-    print("MENU PRINCIPAL".center(60))
-    print("="*60 + "\n")
+    print("\n" + "="*64)
+    print("MENU PRINCIPAL".center(64))
+    print("="*64 + "\n")
     print("  1. Module 1 - Statistiques Serveurs")
     print("      (CPU, RAM, Disk, Uptime)")
     print()
@@ -42,7 +41,7 @@ def display_main_menu():
     print()
     print("  0. Quitter")
     print()
-    print("="*60)
+    print("="*64)
     
     choice = input("\nChoisir (0-3): ").strip()
     return choice
