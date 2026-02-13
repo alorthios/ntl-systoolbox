@@ -75,9 +75,9 @@ def handle_module_2():
         if choice == "0":
             break
         elif choice == "1":
-            module2_mysql.query_database()
+            module2_mysql.backup_database()
         elif choice == "2":
-            module2_mysql.list_tables()
+            module2_mysql.export_table()
         else:
             print("\n❌ Choix invalide. Veuillez réessayer.")
         

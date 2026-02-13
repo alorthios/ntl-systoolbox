@@ -1,3 +1,7 @@
+# Environment & Secrets
+.env
+.env.local
+
 # Virtual Environment
 venv/
 env/
@@ -10,20 +14,10 @@ __pycache__/
 *.so
 .Python
 build/
-develop-eggs/
 dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
 *.egg-info/
-.installed.cfg
 *.egg
+.eggs/
 
 # IDE
 .vscode/
@@ -36,6 +30,6 @@ wheels/
 .DS_Store
 Thumbs.db
 
-# Local config
-config.local.py
-.env
+# Exports & Downloads
+exports/
+downloads/
