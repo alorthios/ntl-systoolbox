@@ -1,11 +1,9 @@
 """
-NTL-SysToolbox - Module 1: Server Statistics
-Monitors CPU, RAM, Disk usage and Uptime
+NTL-SysToolbox - Module 1
 """
 
 
 def display_menu():
-    """Display Module 1 menu"""
     print("\n" + "="*60)
     print("MODULE 1 - STATISTIQUES SERVEURS".center(60))
     print("="*60 + "\n")
@@ -20,7 +18,6 @@ def display_menu():
 
 
 def get_server_stats():
-    """Get and display server statistics"""
     print("\n⏳ Récupération des statistiques serveur...")
     print("\n[Module 1 - À développer]")
     print("Affichage des statistiques:")
@@ -30,7 +27,6 @@ def get_server_stats():
 
 
 def get_uptime():
-    """Get and display system uptime"""
     print("\n⏳ Récupération de l'uptime du système...")
     print("\n[Module 1 - À développer]")
     print("Affichage de l'uptime du serveur")

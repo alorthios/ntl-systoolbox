@@ -1,36 +1,28 @@
 """
-NTL-SysToolbox - Main Menu and Navigation
-Entry point for the CLI application
+NTL-SysToolbox
 """
 
 import sys
 import os
 
-# Import modules (placeholders for now)
-from . import module1_server_stats
-from . import module2_mysql
-from . import module3_eol
-
 
 def display_banner():
-    """Display the ASCII art banner for NTL-SysToolbox"""
     banner = """
-    ╔══════════════════════════════════════════════════════════════╗
-    ║                                                              ║
-    ║              NTL-SysToolbox v1.0                            ║
-    ║         System Monitoring & Analysis Platform               ║
-    ║                                                              ║
-    ╚══════════════════════════════════════════════════════════════╝
+╔═══════════════════════════════════════════════════════════════╗
+║                                                               ║
+║                   NTL-SysToolbox v1.0                         ║
+║                                                               ║
+║                                                               ║
+╚═══════════════════════════════════════════════════════════════╝
     """
     print(banner)
 
 
 def display_main_menu():
-    """Display the main menu and return user choice"""
     display_banner()
-    print("\n" + "="*60)
-    print("MENU PRINCIPAL".center(60))
-    print("="*60 + "\n")
+    print("\n" + "="*64)
+    print("MENU PRINCIPAL".center(64))
+    print("="*64 + "\n")
     print("  1. Module 1 - Statistiques Serveurs")
     print("      (CPU, RAM, Disk, Uptime)")
     print()
@@ -42,14 +34,13 @@ def display_main_menu():
     print()
     print("  0. Quitter")
     print()
-    print("="*60)
+    print("="*64)
     
     choice = input("\nChoisir (0-3): ").strip()
     return choice
 
 
 def handle_module_1():
-    """Handle Module 1 - Server Statistics"""
     while True:
         module1_server_stats.display_menu()
         choice = input("\nChoisir (0-2): ").strip()
@@ -67,7 +58,6 @@ def handle_module_1():
 
 
 def handle_module_2():
-    """Handle Module 2 - MySQL Queries"""
     while True:
         module2_mysql.display_menu()
         choice = input("\nChoisir (0-2): ").strip()
@@ -85,7 +75,6 @@ def handle_module_2():
 
 
 def handle_module_3():
-    """Handle Module 3 - End of Life Info"""
     while True:
         module3_eol.display_menu()
         choice = input("\nChoisir (0-1): ").strip()
@@ -101,7 +90,6 @@ def handle_module_3():
 
 
 def main():
-    """Main application loop"""
     try:
         while True:
             choice = display_main_menu()

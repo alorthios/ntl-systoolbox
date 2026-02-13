@@ -1,11 +1,9 @@
 """
-NTL-SysToolbox - Module 3: End of Life Information
-Provides EOL status for various software/systems
+NTL-SysToolbox - Module 3
 """
 
 
 def display_menu():
-    """Display Module 3 menu"""
     print("\n" + "="*60)
     print("MODULE 3 - END OF LIFE".center(60))
     print("="*60 + "\n")
@@ -17,7 +15,6 @@ def display_menu():
 
 
 def get_eol_info():
-    """Get and display End of Life information"""
     print("\n⏳ Récupération des informations EOL...")
     print("\n[Module 3 - À développer]")
     print("Affichage des informations End of Life")

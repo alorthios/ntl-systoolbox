@@ -38,4 +38,5 @@ Thumbs.db
 
 # Local config
 config.local.py
+config.py
 .env
