@@ -4,9 +4,8 @@ Entry point for the CLI application
 """
 
 import sys
-import os
 
-# Import modules (placeholders for now)
+# Import modules
 from . import module1_server_stats
 from . import module2_mysql
 from . import module3_eol
@@ -17,7 +16,7 @@ def display_banner():
     banner = """
 ╔══════════════════════════════════════════════════════════════╗
 ║                                                              ║
-║                     NTL-SysToolbox v1.0                      ║
+║                   NTL-SysToolbox v2.0.0                      ║
 ║                                                              ║
 ╚══════════════════════════════════════════════════════════════╝
     """
@@ -60,27 +59,14 @@ def handle_module_1():
         elif choice == "2":
             module1_server_stats.get_uptime()
         else:
-            print("\n❌ Choix invalide. Veuillez réessayer.")
+            print("\nChoix invalide. Veuillez réessayer.")
         
         input("\nAppuyez sur Entrée pour continuer...")
 
 
 def handle_module_2():
-    """Handle Module 2 - MySQL Queries"""
-    while True:
-        module2_mysql.display_menu()
-        choice = input("\nChoisir (0-2): ").strip()
-        
-        if choice == "0":
-            break
-        elif choice == "1":
-            module2_mysql.backup_database()
-        elif choice == "2":
-            module2_mysql.export_table()
-        else:
-            print("\n❌ Choix invalide. Veuillez réessayer.")
-        
-        input("\nAppuyez sur Entrée pour continuer...")
+    """Handle Module 2 - MySQL Database Management"""
+    module2_mysql.get_mysql_menu()
 
 
 def handle_module_3():
@@ -95,7 +81,7 @@ def main():
             choice = display_main_menu()
             
             if choice == "0":
-                print("\n👋 Au revoir!\n")
+                print("\nAu revoir!\n")
                 sys.exit(0)
             elif choice == "1":
                 handle_module_1()
@@ -104,15 +90,15 @@ def main():
             elif choice == "3":
                 handle_module_3()
             else:
-                print("\n❌ Choix invalide (0-3). Veuillez réessayer.\n")
+                print("\nChoix invalide (0-3). Veuillez réessayer.\n")
                 input("Appuyez sur Entrée pour continuer...")
     
     except KeyboardInterrupt:
-        print("\n\n⚠️  Application interrompue (Ctrl+C)")
+        print("\nApplication interrompue (Ctrl+C)")
         print("Au revoir!\n")
         sys.exit(0)
     except Exception as e:
-        print(f"\n❌ Erreur: {e}")
+        print(f"\nErreur: {e}")
         sys.exit(1)
 
 

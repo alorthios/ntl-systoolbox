@@ -1,5 +1,5 @@
 """
-Module 3 - End of Life Information & Network Scanning
+NTL-SysToolbox - Module 3 - End of Life Information & Network Scanning
 Détecte les OS présents sur un réseau et fournit les dates de fin de vie
 """
 import nmap
@@ -9,10 +9,9 @@ import requests
 import csv
 import os
 import shutil
-import tkinter as tk
-from tkinter import filedialog
 from datetime import datetime
 from pathlib import Path
+from .utils import get_destination_path, get_file_path
 
 
 EOL_API_BASE = "https://endoflife.date/api"
@@ -24,12 +23,23 @@ POPULAR_OS = ["windows", "ubuntu", "debian", "macos", "centos", "rhel", "fedora"
 # ============================================================================
 
 def fetch_eol_products():
-    """Récupère la liste des OS populaires disponibles via l'API EOL"""
+    """
+    Récupère la liste des OS populaires disponibles via l'API EOL
+    
+    Utilise l'API https://endoflife.date/api pour récupérer les OS supportés
+    et filtre uniquement les OS populaires définis dans POPULAR_OS.
+    
+    Retourne:
+        dict: dictionnaire {nom_os: nom_os} ou None si erreur de connexion
+        Exemple: {'windows': 'windows', 'ubuntu': 'ubuntu', ...}
+    """
     try:
+        # Appel à l'API pour récupérer la liste complète de tous les OS
         response = requests.get(f"{EOL_API_BASE}/all.json", timeout=5)
-        response.raise_for_status()
+        response.raise_for_status()  # Lève une exception si code d'erreur HTTP
         all_products = response.json()
         
+        # Filtrage: garder seulement les OS populaires
         os_products = {}
         for product_name in all_products:
             if product_name.lower() in POPULAR_OS:
@@ -42,8 +52,21 @@ def fetch_eol_products():
 
 
 def fetch_os_versions(product_name):
-    """Récupère toutes les versions/cycles d'un OS avec leurs dates EOL"""
+    """
+    Récupère toutes les versions/cycles d'un OS avec leurs dates EOL
+    
+    L'API endoflife.date retourne pour chaque version les informations:
+    - cycle: numéro de version (8.0, 10.0, 22.04, etc.)
+    - eol: date ou statut de fin de support (AAAA-MM-JJ ou "False")
+    - lts: booléen indiquant si c'est une version Long-Term Support
+    
+    Retourne:
+        list: liste de dictionnaires contenant les cycles ou None si erreur
+        Exemple: [{'cycle': '8.0', 'eol': '2022-01-10', 'lts': false}, ...]
+    """
     try:
+        # Appel API spécifique pour un OS
+        # Exemple: https://endoflife.date/api/windows.json
         url = f"{EOL_API_BASE}/{product_name.lower()}.json"
         response = requests.get(url, timeout=5)
         response.raise_for_status()
@@ -77,11 +100,28 @@ def display_menu():
 # ============================================================================
 
 def validate_subnet(subnet):
-    """Valide une plage CIDR (ex: 192.168.1.0/24)"""
+    """
+    Valide une plage réseau au format CIDR
+    
+    Format CIDR (Classless Inter-Domain Routing):
+    - XXX.XXX.XXX.XXX/NN
+    - XXX = octet IP (0-255)
+    - NN = masque de réseau (8-32 pour IPv4)
+    
+    Exemples valides:
+    - 192.168.1.0/24 (réseau local classique)
+    - 10.0.0.0/8 (réseau privé classe A)
+    - 172.16.0.0/12 (réseau privé classe B)
+    
+    Retourne:
+        bool: True si format CIDR valide, False sinon
+    """
+    # Expression régulière pour vérifier le format X.X.X.X/NN
     cidr_pattern = r'^(\d{1,3}\.){3}\d{1,3}/\d{1,2}$'
     if not re.match(cidr_pattern, subnet):
         return False
     
+    # Vérification que chaque octet est entre 0-255
     ip_part = subnet.split('/')[0]
     for octet in ip_part.split('.'):
         if int(octet) > 255:
@@ -92,30 +132,45 @@ def validate_subnet(subnet):
 
 def scan_network(subnet):
     """
-    Scan une plage réseau avec nmap pour détecter les OS
+    Scan une plage réseau avec nmap pour détecter les adresses et OS actifs
     
-    Essaie plusieurs niveaux de détection:
-    - Avec OS fingerprinting (nécessite droits admin)
-    - Avec service detection uniquement
-    - Juste la détection des ports ouverts
+    Stratégie de détection:
+    - Essaie d'abord OS fingerprinting (analyse approfondie, nécessite admin)
+    - Bascule sur détection de services (-sV) si OS fail
+    - Recours simple: scan des ports courants si services fail
+    
+    Ports scannés: 22, 80, 443, 445, 3389, 5985, 8080, 8443
+    - 22: SSH (Linux/Unix)
+    - 80, 443, 8080, 8443: HTTP/HTTPS (serveurs web)
+    - 445: SMB (Windows partage)
+    - 3389: RDP (Windows bureau distant)
+    - 5985: WinRM (Windows management)
+    
+    Retourne:
+        nmap.PortScanner: objet résultat nmap ou None si erreur
     """
+    # Valider le format de la plage réseau avant de scanner
     if not validate_subnet(subnet):
         print(f"Format invalide. Utilisez le format CIDR (ex: 192.168.1.0/24)")
         return None
     
-    print(f"\n⏳ Scan en cours (cela peut prendre du temps)...")
+    print(f"\nScan en cours (cela peut prendre du temps)...")
     print(f"   Plage: {subnet}\n")
     
     try:
         nm = nmap.PortScanner()
+        # Ports courants utilisés pour détecter les services
         common_ports = "22,80,443,445,3389,5985,8080,8443"
         
         try:
+            # Tentative 1: Scan complet avec OS fingerprinting
             nm.scan(hosts=subnet, arguments=f'-p {common_ports} -O -sV')
         except:
             try:
+                # Tentative 2: Scan avec détection de services uniquement
                 nm.scan(hosts=subnet, arguments=f'-p {common_ports} -sV')
             except:
+                # Tentative 3: Scan simple des ports
                 nm.scan(hosts=subnet, arguments=f'-p {common_ports}')
         
         return nm
@@ -215,47 +270,6 @@ def scan_network_menu():
 
 
 # ============================================================================
-# Utility Functions
-# ============================================================================
-
-def get_destination_path():
-    """
-    Ouvre une boîte de dialogue pour sélectionner le dossier de destination
-    Retourne: chemin valide ou None si annulé
-    """
-    default_path = os.path.expanduser("~/Downloads")
-    
-    try:
-        root = tk.Tk()
-        root.withdraw()  # Cacher la fenêtre principale
-        
-        user_path = filedialog.askdirectory(
-            title="Choix du dossier d'export du CSV EOL",
-            initialdir=default_path
-        )
-        root.destroy()
-        
-        if not user_path:
-            print("Opération annulée par l'utilisateur.")
-            return None
-    except:
-        # Fallback: demander le chemin en texte si la boîte de dialogue échoue
-        print("Boîte de dialogue indisponible, saisie manuelle...")
-        user_path = input(f"Chemin de destination (Enter pour {default_path}): ").strip()
-        user_path = user_path if user_path else default_path
-    
-    # Crée le dossier s'il n'existe pas
-    if not os.path.exists(user_path):
-        try:
-            os.makedirs(user_path)
-        except Exception as e:
-            print(f"Impossible de créer le dossier: {e}")
-            return None
-    
-    return user_path
-
-
-# ============================================================================
 # CSV Processing Functions - Fonction n°3
 # ============================================================================
 
@@ -332,7 +346,7 @@ def process_csv_file(input_file, output_file):
         input_path = Path(input_file)
         if not input_path.exists():
             print(f"Fichier introuvable: {input_file}")
-            return False
+            return False, []
         
         results = []
         
@@ -346,7 +360,7 @@ def process_csv_file(input_file, output_file):
             header = next(reader, None)
             if not header or len(header) < 3:
                 print("Format invalide. attendu: nom;os;version")
-                return False
+                return False, []
             
             # Traiter chaque ligne
             for row_num, row in enumerate(reader, start=2):
@@ -357,15 +371,11 @@ def process_csv_file(input_file, output_file):
                 nom, os, version = row[0].strip(), row[1].strip(), row[2].strip()
                 
                 # Récupérer les infos EOL
-                eol_date, is_lts = get_eol_date_for_version(os, version)
+                eol_date, _ = get_eol_date_for_version(os, version)
                 status = determine_status(eol_date)
                 
                 # Formater la date EOL pour la sortie
-                eol_str = "N/A"
-                if isinstance(eol_date, datetime) or hasattr(eol_date, 'year'):
-                    eol_str = str(eol_date)
-                elif eol_date is not None:
-                    eol_str = str(eol_date)
+                eol_str = str(eol_date) if eol_date is not None else "N/A"
                 
                 results.append({
                     'nom': nom,
@@ -384,11 +394,56 @@ def process_csv_file(input_file, output_file):
         
         print(f"\nFichier généré: {output_file}")
         print(f"   {len(results)} entrées traitées")
-        return True
+        return True, results
     
     except Exception as e:
         print(f"Erreur lors du traitement: {e}")
-        return False
+        return False, []
+
+
+def display_imported_csv(input_file):
+    """
+    Affiche le contenu du fichier CSV importé par l'utilisateur
+    
+    Affiche le CSV original avec colonnes:
+    - NOM: nom du serveur/système
+    - OS: système d'exploitation
+    - VERSION: numéro de version
+    """
+    try:
+        input_path = Path(input_file)
+        if not input_path.exists():
+            print(f"Fichier introuvable: {input_file}")
+            return
+        
+        print("\n" + "="*64)
+        print("CONTENU DU FICHIER IMPORTÉ".center(64))
+        print("="*64 + "\n")
+        
+        # En-têtes avec largeurs de colonnes
+        print(f"{'NOM':<20} {'OS':<20} {'VERSION':<24}")
+        print("-" * 64)
+        
+        # Lire et afficher le CSV
+        with open(input_path, 'r', encoding='utf-8') as f:
+            reader = csv.reader(f, delimiter=';')
+            header = next(reader, None)
+            
+            if not header or len(header) < 3:
+                print("Format invalide")
+                return
+            
+            # Afficher chaque ligne
+            for row in reader:
+                if len(row) >= 3:
+                    nom = row[0].strip()[:20]
+                    os = row[1].strip()[:20]
+                    version = row[2].strip()[:24]
+                    print(f"{nom:<20} {os:<20} {version:<24}")
+        
+        print("\n" + "="*64)
+    except Exception as e:
+        print(f"Erreur lors de l'affichage du fichier: {e}")
 
 
 def csv_import_menu():
@@ -398,43 +453,31 @@ def csv_import_menu():
     print("="*64 + "\n")
     
     # Ouvrir une boîte de dialogue pour sélectionner le fichier CSV
-    print("Choix du fichier CSV d'import")
-    try:
-        root = tk.Tk()
-        root.withdraw()  # Cacher la fenêtre principale
-        
-        input_file = filedialog.askopenfilename(
-            title="Choix du fichier d'import CSV (nom;os;version)",
-            filetypes=[("CSV files", "*.csv"), ("All files", "*.*")],
-            initialdir=os.path.expanduser("~")
-        )
-        root.destroy()
-        
-        if not input_file:
-            print("Opération annulée.")
-            return
-    except:
-        # Fallback: demander le chemin en texte si la boîte de dialogue échoue
-        print("Boîte de dialogue indisponible, saisie manuelle...")
-        input_file = input("Fichier CSV source (nom;os;version): ").strip()
-        
-        if not input_file:
-            print("Opération annulée.")
-            return
+    print("Choix du fichier CSV d'import (nom;os;version) ...")
+    input_file = get_file_path(
+        title="Choix du fichier d'import CSV (nom;os;version) ...",
+        filetypes=[("CSV files", "*.csv"), ("All files", "*.*")]
+    )
+    
+    if not input_file:
+        return
+    
+    # Afficher le contenu du CSV importé
+    display_imported_csv(input_file)
     
     # Construire le nom du fichier de sortie
     input_path = Path(input_file)
     output_file = input_path.stem + "_eol" + input_path.suffix
     
-    print(f"\nFichier de sortie: {output_file}")
-    
     # Traiter le fichier
-    if process_csv_file(input_file, output_file):
+    success, results = process_csv_file(input_file, output_file)
+    
+    if success:
         print("\n" + "="*64)
         
         # Télécharger directement le fichier
-        print("\nChoix du dossier d'export du CSV EOL :")
-        dest_path = get_destination_path()
+        print("\nChoix du dossier d'export du CSV EOL ...")
+        dest_path = get_destination_path("Choix du dossier d'export du CSV EOL ...")
         
         if dest_path:
             try:
@@ -446,12 +489,10 @@ def csv_import_menu():
                 try:
                     os.remove(output_file)
                 except Exception as e:
-                    print(f"Impossible de supprimer le fichier temporaire: {e}")
+                    pass
             except Exception as e:
                 print(f"Erreur lors du téléchargement: {e}")
         
-        print("\n" + "="*64)
-    else:
         print("\n" + "="*64)
 
 
@@ -499,7 +540,7 @@ def list_os_versions():
     print(f"VERSIONS - {selected_os}".center(64))
     print("="*64 + "\n")
     
-    print(f"{'VERSION':<18} {'EOL':<14} {'LTS':<2} {'STATUT':<30}")
+    print(f"{'VERSION':<18} {'EOL':<14} {'LTS':<6} {'STATUT':<26}")
     print("-" * 64)
     
     # Trie par numéro de version décroissant
@@ -516,7 +557,7 @@ def list_os_versions():
         version = str(cycle.get('cycle', 'N/A'))[:18]
         eol_str = str(cycle.get('eol', 'N/A'))[:13]
         is_lts = cycle.get('lts', False)
-        lts_str = "✓" if is_lts else ""
+        lts_str = "Oui" if is_lts else "Non"
         
         # Détermine le statut
         status = "Support actif"
@@ -532,7 +573,7 @@ def list_os_versions():
         except ValueError:
             pass
         
-        print(f"{version:<18} {eol_str:<14} {lts_str:<2} {status:<30}")
+        print(f"{version:<18} {eol_str:<14} {lts_str:<6} {status:<26}")
     
     print("\n" + "="*64)
 

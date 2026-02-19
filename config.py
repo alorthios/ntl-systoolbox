@@ -17,16 +17,7 @@ MYSQL_CONFIG = {
     'port': int(os.getenv('MYSQL_PORT', 3306))
 }
 
-# Servers to Monitor (Module 1)
-SERVERS = {
-    'local': {
-        'name': 'Local Machine',
-        'type': 'local',
-        'os': 'auto'  # auto-detect or 'windows'/'linux'
-    }
-}
-
 # Application Settings
 APP_NAME = "NTL-SysToolbox"
-APP_VERSION = "1.0.0"
+APP_VERSION = "2.0.0"
 DEBUG = False

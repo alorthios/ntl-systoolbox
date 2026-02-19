@@ -1,5 +1,5 @@
 """
-NTL-SysToolbox - Module 2: MySQL Database
+NTL-SysToolbox - Module 2: MySQL Database Management
 Gère la sauvegarde et l'export de données depuis MySQL
 """
 import pymysql
@@ -7,30 +7,47 @@ from pymysql import Error
 import csv
 import os
 from datetime import datetime
+from .utils import get_destination_path
+
+# Charger la configuration depuis la racine du projet
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).parent.parent))
 from config import MYSQL_CONFIG
 
+
+# ============================================================================
+# Database Connection Functions
+# ============================================================================
 
 def get_mysql_connection():
     """
     Établit une connexion avec le serveur MySQL
-    Utilise les paramètres définis dans config.py (MYSQL_CONFIG)
-    Retourne: connexion MySQL ou None si erreur de connexion
+    
+    Utilise les paramètres définis dans config.py (MYSQL_CONFIG).
+    La syntaxe **MYSQL_CONFIG dépacke le dictionnaire en paramètres nommés.
+    
+    Retourne:
+        connexion MySQL ou None si erreur de connexion
     """
     try:
-        # **MYSQL_CONFIG dépacke le dictionnaire en paramètres nommés
-        # Équivalent à: connect(host=..., user=..., password=..., database=..., port=...)
+        # Dépackage du dictionnaire: **MYSQL_CONFIG devient host=..., user=..., etc.
         connection = pymysql.connect(**MYSQL_CONFIG)
         return connection
     except Error as err:
-        # Gestion des erreurs courantes
+        # Gestion des erreurs courantes de MySQL
         if "Unknown MySQL server host" in str(err):
-            print(f"❌ Impossible de se connecter au serveur: {MYSQL_CONFIG['host']}")
+            print(f"Erreur: Serveur introuvable: {MYSQL_CONFIG['host']}")
         elif "Access denied" in str(err):
-            print(f"❌ Erreur d'authentification - vérifiez l'utilisateur/password")
+            print(f"Erreur: Authentification échouée - vérifiez utilisateur/password")
         else:
-            print(f"❌ Erreur: {err}")
+            print(f"Erreur de connexion: {err}")
         return None
 
+
+# ============================================================================
+# Menu Functions
+# ============================================================================
 
 def display_menu():
     """Affiche le menu du Module 2"""
@@ -46,48 +63,43 @@ def display_menu():
     print("="*64)
 
 
-def get_destination_path():
-    """
-    Demande le chemin de destination et crée le dossier s'il n'existe pas
-    Retourne: chemin valide ou None si erreur
-    """
-    default_path = os.path.expanduser("~/Downloads")
-    user_path = input(f"\nChemin de destination (Enter pour {default_path}): ").strip()
-    user_path = user_path if user_path else default_path
-    
-    # Crée le dossier s'il n'existe pas
-    if not os.path.exists(user_path):
-        try:
-            os.makedirs(user_path)
-        except Exception as e:
-            print(f"❌ Impossible de créer le dossier: {e}")
-            return None
-    
-    return user_path
-
+# ============================================================================
+# Database Backup Functions
+# ============================================================================
 
 def backup_database():
     """
     Sauvegarde complète de la base de données au format SQL
-    Crée un fichier .sql avec:
-    - DROP TABLE IF EXISTS pour chaque table (permet un rebuild complet)
-    - CREATE TABLE pour le schéma complet
-    - INSERT INTO avec données typées correctement (nombres sans guillemets, strings avec)
-    """
-    print("\n⏳ Préparation de la sauvegarde...")
     
-    # Demande le chemin de destination à l'utilisateur
-    user_path = get_destination_path()
+    Crée un fichier .sql contenant:
+    - Commentaires avec métadonnées (base, timestamp)
+    - La commande USE pour sélectionner la base de données
+    - Pour chaque table:
+      * DROP TABLE IF EXISTS (permet recréer/restore sans conflit)
+      * CREATE TABLE (structure complète)
+      * INSERT INTO (données avec typage correct)
+    
+    Stratégie de typage dans les INSERT:
+    - Nombres (INT, FLOAT, DECIMAL, etc.): sans guillemets
+    - Chaînes: avec guillemets simples, apostrophes échappées
+    - NULL: mot-clé NULL sans guillemets
+    """
+    print("\nPréparation de la sauvegarde...")
+    
+    # Étape 1: Sélectionner le dossier de destination
+    print("Choix du dossier de sauvegarde SQL ...")
+    user_path = get_destination_path("Choix du dossier de sauvegarde SQL ...")
     if not user_path:
         return
     
-    # Génère le nom du fichier avec timestamp pour éviter les doublons
+    # Étape 2: Générer le nom du fichier avec timestamp
     # Format: nombase_backup_YYYYMMDD_HHMMSS.sql
+    # Le timestamp évite les doublons si multiples sauvegardes
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     filename = f"{MYSQL_CONFIG['database']}_backup_{timestamp}.sql"
     filepath = os.path.join(user_path, filename)
     
-    # Se connecte à MySQL
+    # Étape 3: Établir la connexion MySQL
     connection = get_mysql_connection()
     if not connection:
         return
@@ -95,88 +107,103 @@ def backup_database():
     try:
         cursor = connection.cursor()
         
-        # 1. Récupère la liste des tables de la base de données
+        # Étape 4: Récupérer la liste de toutes les tables de la base
         cursor.execute("SHOW TABLES")
         tables = cursor.fetchall()
         
         if not tables:
-            print(f"❌ Aucune table trouvée")
+            print(f"Aucune table trouvée")
             return
         
-        # 2. Crée le fichier SQL
+        # Étape 5: Créer et remplir le fichier SQL
         with open(filepath, 'w', encoding='utf-8') as f:
-            # En-tête du fichier avec métadonnées
+            # En-tête SQL: commentaires avec information de sauvegarde
             f.write(f"-- Sauvegarde de {MYSQL_CONFIG['database']}\n")
             f.write(f"-- {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
-            # Sélectionne la base de données (essentiellement si restore sur autre base)
+            # La commande USE sélectionne la base (utile pour restaurer sur autre serveur)
             f.write(f"USE {MYSQL_CONFIG['database']};\n\n")
             
-            # 3. Exporte chaque table
+            # Boucle sur chaque table pour la sauvegarder
             for (table_name,) in tables:
-                # Supprime la table si elle existe (permet un rebuild/restore complet)
-                # Sans cela, les INSERT échouent si les données existent déjà
+                # DROP TABLE IF EXISTS: supprime la table si elle existe
+                # Évite les erreurs lors du restore si table existe déjà
                 f.write(f"DROP TABLE IF EXISTS `{table_name}`;\n\n")
                 
-                # Récupère et écrit la structure complète de la table
+                # Récupère et écrit la définition structurelle de la table (CREATE TABLE)
                 cursor.execute(f"SHOW CREATE TABLE {table_name}")
                 create_table = cursor.fetchone()[1]
                 f.write(f"{create_table};\n\n")
                 
-                # 4. Détermine les types de colonnes (utile pour formater les INSERT)
-                # Permet de différencier: nombres (sans guillemets) vs strings (avec guillemets)
+                # Récupère les types de colonnes pour formater correctement les INSERT
+                # Exemple: col_id=INT, col_name=VARCHAR, col_price=DECIMAL, etc.
                 cursor.execute(f"DESCRIBE {table_name}")
                 column_info = cursor.fetchall()
                 column_types = {col[0]: col[1].lower() for col in column_info}
                 columns = [col[0] for col in column_info]
                 
-                # 5. Récupère toutes les données de la table
+                # Récupère toutes les données de la table
                 cursor.execute(f"SELECT * FROM {table_name}")
                 data = cursor.fetchall()
                 
-                # 6. Génère les instructions INSERT avec typage correct
+                # Génère les instructions INSERT avec typage correct
                 for row in data:
                     formatted_values = []
+                    # Traite chaque colonne de chaque ligne
                     for col_name, val in zip(columns, row):
-                        # Gère les valeurs NULL
                         if val is None:
+                            # NULL n'a pas de guillemets
                             formatted_values.append('NULL')
                         else:
                             col_type = column_types[col_name]
-                            # Les nombres ne doivent pas avoir de guillemets (INT, FLOAT, DECIMAL, etc.)
+                            # Nombres: pas de guillemets
                             if any(num_type in col_type for num_type in ['int', 'float', 'double', 'decimal']):
                                 formatted_values.append(str(val))
                             else:
-                                # Les strings doivent avoir des guillemets, avec échappement des apostrophes
+                                # Chaînes: guillemets + échappement des apostrophes
                                 escaped_val = str(val).replace("'", "''")
                                 formatted_values.append(f"'{escaped_val}'")
                     
-                    # Génère la ligne INSERT
+                    # Écrit la ligne INSERT
                     values_str = ', '.join(formatted_values)
                     f.write(f"INSERT INTO `{table_name}` VALUES ({values_str});\n")
                 
-                # Ligne vide entre les tables pour lisibilité
+                # Ligne vide entre les tables pour meilleure lisibilité
                 f.write("\n")
         
-        print(f"✅ Sauvegarde réussie!")
+        # Affichage du succès
+        print(f"Sauvegarde réussie")
         print(f"   Fichier: {filepath}")
         
     except Error as err:
-        print(f"❌ Erreur lors de la sauvegarde: {err}")
+        print(f"Erreur lors de la sauvegarde: {err}")
     finally:
+        # Toujours fermer la connexion, même en cas d'erreur
         cursor.close()
         connection.close()
 
 
+# ============================================================================
+# Database Export Functions  
+# ============================================================================
 
 def export_table():
     """
     Exporte une table sélectionnée au format CSV
-    Utilise le séparateur `;` pour compatibilité Excel français
-    Format d'en-tête CSV: colonne1;colonne2;colonne3;...
-    """
-    print("\n⏳ Récupération des tables...")
     
-    # Établit la connexion MySQL
+    Étapes:
+    1. Récupère la liste de toutes les tables disponibles
+    2. Affiche et demande à l'utilisateur de choisir une table
+    3. Demande le dossier de destination
+    4. Exporte les données avec en-têtes de colonnes
+    
+    Format CSV:
+    - Séparateur: ; (point-virgule) pour compatibilité Excel français
+    - Encodage: UTF-8 avec BOM pour compatibilité Windows
+    - Saut de lignes: géré correctement selon le système d'exploitation
+    """
+    print("\nRécupération des tables...")
+    
+    # Étape 1: Établir la connexion MySQL
     connection = get_mysql_connection()
     if not connection:
         return
@@ -184,67 +211,92 @@ def export_table():
     try:
         cursor = connection.cursor()
         
-        # 1. Récupère la liste de toutes les tables de la base
+        # Étape 2: Récupérer la liste de toutes les tables de la base
         cursor.execute("SHOW TABLES")
         tables = [table[0] for table in cursor.fetchall()]
         
         if not tables:
-            print(f"❌ Aucune table trouvée")
+            print(f"Aucune table trouvée")
             return
         
-        # 2. Affiche les tables disponibles avec le préfixe de la base
-        print("\n📊 Tables disponibles:")
+        # Étape 3: Afficher les tables disponibles pour que l'utilisateur choisisse
+        print("\nTables disponibles")
         for i, table in enumerate(tables, 1):
             db_prefix = f"{MYSQL_CONFIG['database']}."
             print(f"  {i}. {db_prefix}{table}")
         
-        # 3. Demande à l'utilisateur de sélectionner une table
+        # Étape 4: Demander à l'utilisateur de sélectionner une table
         try:
             choice = int(input("\nChoisir une table (numéro): "))
             if choice < 1 or choice > len(tables):
-                print("❌ Choix invalide")
+                print("Choix invalide")
                 return
             selected_table = tables[choice - 1]
         except ValueError:
-            print("❌ Entrée invalide")
+            print("Entrée invalide")
             return
         
-        # 4. Demande le chemin de destination (crée le dossier si nécessaire)
-        user_path = get_destination_path()
+        # Étape 5: Demander le chemin de destination
+        print("\nChoix du dossier d'export CSV ...")
+        user_path = get_destination_path("Choix du dossier d'export CSV ...")
         if not user_path:
             return
         
-        # 5. Génère le nom du fichier avec timestamp
+        # Étape 6: Générer le nom du fichier avec timestamp
         # Format: nombase_nomtable_YYYYMMDD_HHMMSS.csv
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"{MYSQL_CONFIG['database']}_{selected_table}_{timestamp}.csv"
         filepath = os.path.join(user_path, filename)
         
-        # 6. Récupère toutes les données de la table sélectionnée
+        # Étape 7: Récupérer les données de la table
         cursor.execute(f"SELECT * FROM {selected_table}")
         rows = cursor.fetchall()
         
-        # 7. Récupère les noms des colonnes pour l'en-tête CSV
+        # Étape 8: Récupérer les noms des colonnes
         cursor.execute(f"DESCRIBE {selected_table}")
         columns = [col[0] for col in cursor.fetchall()]
         
-        # 8. Écrit le fichier CSV avec les paramètres approrpiés:
-        # - encoding='utf-8-sig': Ajoute BOM pour compatibilité Excel/Windows
-        # - delimiter=';': Séparateur français (virgule pour décimales)
-        # - newline='': Gère correctement les sauts de ligne entre OS
+        # Étape 9: Écrire le fichier CSV
+        # encoding='utf-8-sig': ajoute BOM (Byte Order Mark) pour Excel Windows
+        # delimiter=';': utilise point-virgule pour compatibilité Excel français
+        # newline='': gère correctement les sauts de ligne cross-platform
         with open(filepath, 'w', newline='', encoding='utf-8-sig') as f:
             writer = csv.writer(f, delimiter=';')
-            # Écrit l'en-tête avec les noms de colonnes
+            # Première ligne: en-têtes de colonnes
             writer.writerow(columns)
-            # Écrit toutes les lignes de données
+            # Lignes suivantes: données
             writer.writerows(rows)
         
-        print(f"✅ Export réussi!")
+        # Affichage du succès
+        print(f"Export réussi")
         print(f"   Table: {selected_table} ({len(rows)} lignes)")
         print(f"   Fichier: {filepath}")
         
     except Error as err:
-        print(f"❌ Erreur lors de l'export: {err}")
+        print(f"Erreur lors de l'export: {err}")
     finally:
+        # Toujours fermer la connexion, même en cas d'erreur
         cursor.close()
         connection.close()
+
+
+# ============================================================================
+# Main Entry Point
+# ============================================================================
+
+def get_mysql_menu():
+    """Point d'entrée principal du Module 2"""
+    while True:
+        display_menu()
+        choice = input("Choisir (0-2): ").strip()
+        
+        if choice == "1":
+            backup_database()
+        elif choice == "2":
+            export_table()
+        elif choice == "0":
+            break
+        else:
+            print("Choix invalide. Veuillez sélectionner 0, 1 ou 2.")
+        
+        input("\nAppuyez sur Entrée pour continuer...")

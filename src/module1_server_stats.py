@@ -1,11 +1,15 @@
 """
-NTL-SysToolbox - Module 1: Server Statistics
-Monitors CPU, RAM, Disk usage and Uptime
+NTL-SysToolbox - Module 1: Server Statistics & Monitoring
+Affiche les statistiques du serveur: CPU, RAM, Disk, Uptime
 """
 
 
+# ============================================================================
+# Menu Functions
+# ============================================================================
+
 def display_menu():
-    """Display Module 1 menu"""
+    """Affiche le menu du Module 1"""
     print("\n" + "="*60)
     print("MODULE 1 - STATISTIQUES SERVEURS".center(60))
     print("="*60 + "\n")
@@ -19,9 +23,23 @@ def display_menu():
     print("="*60)
 
 
+# ============================================================================
+# Server Statistics Functions
+# ============================================================================
+
 def get_server_stats():
-    """Get and display server statistics"""
-    print("\n⏳ Récupération des statistiques serveur...")
+    """
+    Affiche les statistiques actuelles du serveur
+    
+    Statistiques à afficher:
+    - CPU Usage: pourcentage d'utilisation du processeur en temps réel
+    - RAM Usage: mémoire vive utilisée vs disponible en gigaoctets
+    - Disk Usage: espace disque utilisé vs disponible par volume
+    
+    Note: Cette fonction est une placeholder en développement.
+    À compléter avec les appels aux bibliothèques psutil ou os.
+    """
+    print("\nRécupération des statistiques serveur...")
     print("\n[Module 1 - À développer]")
     print("Affichage des statistiques:")
     print("  • CPU Usage")
@@ -29,8 +47,22 @@ def get_server_stats():
     print("  • Disk Usage")
 
 
+# ============================================================================
+# System Uptime Functions
+# ============================================================================
+
 def get_uptime():
-    """Get and display system uptime"""
-    print("\n⏳ Récupération de l'uptime du système...")
+    """
+    Affiche le temps depuis le dernier démarrage du système
+    
+    L'uptime (durée de fonctionnement) indique depuis combien de temps
+    le système est en cours d'exécution sans redémarrage.
+    
+    Affichage attendu: Jours, Heures, Minutes
+    
+    Note: Cette fonction est une placeholder en développement.
+    À compléter avec les appels aux commandes système ou psutil.
+    """
+    print("\nRécupération de l'uptime du système...")
     print("\n[Module 1 - À développer]")
     print("Affichage de l'uptime du serveur")
