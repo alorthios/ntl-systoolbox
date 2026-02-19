@@ -6,7 +6,13 @@ import nmap
 import socket
 import re
 import requests
+import csv
+import os
+import shutil
+import tkinter as tk
+from tkinter import filedialog
 from datetime import datetime
+from pathlib import Path
 
 
 EOL_API_BASE = "https://endoflife.date/api"
@@ -59,6 +65,7 @@ def display_menu():
     print("="*64 + "\n")
     print("  1. Scanner une plage réseau (détection OS)")
     print("  2. Lister les versions d'un OS (dates de fin de vie)")
+    print("  3. Importer CSV et ajouter infos EOL")
     print()
     print("  0. Retour au menu principal")
     print()
@@ -208,12 +215,251 @@ def scan_network_menu():
 
 
 # ============================================================================
-# End of Life Listing Functions - Fonction n°2
+# Utility Functions
 # ============================================================================
+
+def get_destination_path():
+    """
+    Ouvre une boîte de dialogue pour sélectionner le dossier de destination
+    Retourne: chemin valide ou None si annulé
+    """
+    default_path = os.path.expanduser("~/Downloads")
+    
+    try:
+        root = tk.Tk()
+        root.withdraw()  # Cacher la fenêtre principale
+        
+        user_path = filedialog.askdirectory(
+            title="Choix du dossier d'export du CSV EOL",
+            initialdir=default_path
+        )
+        root.destroy()
+        
+        if not user_path:
+            print("Opération annulée par l'utilisateur.")
+            return None
+    except:
+        # Fallback: demander le chemin en texte si la boîte de dialogue échoue
+        print("Boîte de dialogue indisponible, saisie manuelle...")
+        user_path = input(f"Chemin de destination (Enter pour {default_path}): ").strip()
+        user_path = user_path if user_path else default_path
+    
+    # Crée le dossier s'il n'existe pas
+    if not os.path.exists(user_path):
+        try:
+            os.makedirs(user_path)
+        except Exception as e:
+            print(f"Impossible de créer le dossier: {e}")
+            return None
+    
+    return user_path
+
+
+# ============================================================================
+# CSV Processing Functions - Fonction n°3
+# ============================================================================
+
+def get_eol_date_for_version(product_name, version):
+    """
+    Récupère la date EOL pour une version spécifique d'un OS
+    
+    Retourne:
+        tuple: (eol_date, is_lts) ou (None, False) si non trouvé
+    """
+    try:
+        cycles = fetch_os_versions(product_name)
+        if not cycles:
+            return None, False
+        
+        # Cherche la version exacte
+        for cycle in cycles:
+            if str(cycle.get('cycle', '')).lower() == str(version).lower():
+                eol_str = cycle.get('eol', None)
+                is_lts = cycle.get('lts', False)
+                
+                if eol_str and eol_str != "False":
+                    try:
+                        eol_date = datetime.strptime(str(eol_str), "%Y-%m-%d").date()
+                        return eol_date, is_lts
+                    except ValueError:
+                        pass
+                
+                return eol_str, is_lts
+        
+        return None, False
+    except:
+        return None, False
+
+
+def determine_status(eol_date):
+    """
+    Détermine le statut basé sur la date EOL
+    
+    Retourne:
+        str: "Support actif", "EOL dans X jours" ou "Fin de vie (X jours)"
+    """
+    if eol_date is None:
+        return "Statut inconnu"
+    
+    if isinstance(eol_date, str):
+        return "Support actif" if eol_date == "False" else str(eol_date)
+    
+    try:
+        today = datetime.now().date()
+        
+        if eol_date < today:
+            days_ago = (today - eol_date).days
+            return f"Fin de vie ({days_ago}j)"
+        else:
+            days_left = (eol_date - today).days
+            if days_left < 180:
+                return f"EOL dans {days_left} jours"
+            else:
+                return "Support actif"
+    except:
+        return "Statut inconnu"
+
+
+def process_csv_file(input_file, output_file):
+    """
+    Traite un fichier CSV d'entrée et ajoute les informations EOL
+    
+    Format entrée: nom;os;version
+    Format sortie: nom;os;version;date_eol;etat
+    """
+    try:
+        # Vérifier que le fichier existe
+        input_path = Path(input_file)
+        if not input_path.exists():
+            print(f"Fichier introuvable: {input_file}")
+            return False
+        
+        results = []
+        
+        print(f"\nTraitement du fichier {input_file}...")
+        
+        # Lire le fichier CSV
+        with open(input_path, 'r', encoding='utf-8') as f:
+            reader = csv.reader(f, delimiter=';')
+            
+            # Vérifier l'en-tête
+            header = next(reader, None)
+            if not header or len(header) < 3:
+                print("Format invalide. attendu: nom;os;version")
+                return False
+            
+            # Traiter chaque ligne
+            for row_num, row in enumerate(reader, start=2):
+                if len(row) < 3:
+                    print(f"Ligne {row_num}: format invalide, ignorée")
+                    continue
+                
+                nom, os, version = row[0].strip(), row[1].strip(), row[2].strip()
+                
+                # Récupérer les infos EOL
+                eol_date, is_lts = get_eol_date_for_version(os, version)
+                status = determine_status(eol_date)
+                
+                # Formater la date EOL pour la sortie
+                eol_str = "N/A"
+                if isinstance(eol_date, datetime) or hasattr(eol_date, 'year'):
+                    eol_str = str(eol_date)
+                elif eol_date is not None:
+                    eol_str = str(eol_date)
+                
+                results.append({
+                    'nom': nom,
+                    'os': os,
+                    'version': version,
+                    'date_eol': eol_str,
+                    'etat': status
+                })
+        
+        # Écrire le fichier de sortie
+        output_path = Path(output_file)
+        with open(output_path, 'w', newline='', encoding='utf-8') as f:
+            writer = csv.DictWriter(f, fieldnames=['nom', 'os', 'version', 'date_eol', 'etat'], delimiter=';')
+            writer.writeheader()
+            writer.writerows(results)
+        
+        print(f"\nFichier généré: {output_file}")
+        print(f"   {len(results)} entrées traitées")
+        return True
+    
+    except Exception as e:
+        print(f"Erreur lors du traitement: {e}")
+        return False
+
+
+def csv_import_menu():
+    """Menu pour importer et traiter un fichier CSV"""
+    print("\n" + "="*64)
+    print("IMPORT CSV - EOL CHECK".center(64))
+    print("="*64 + "\n")
+    
+    # Ouvrir une boîte de dialogue pour sélectionner le fichier CSV
+    print("Choix du fichier CSV d'import")
+    try:
+        root = tk.Tk()
+        root.withdraw()  # Cacher la fenêtre principale
+        
+        input_file = filedialog.askopenfilename(
+            title="Choix du fichier d'import CSV (nom;os;version)",
+            filetypes=[("CSV files", "*.csv"), ("All files", "*.*")],
+            initialdir=os.path.expanduser("~")
+        )
+        root.destroy()
+        
+        if not input_file:
+            print("Opération annulée.")
+            return
+    except:
+        # Fallback: demander le chemin en texte si la boîte de dialogue échoue
+        print("Boîte de dialogue indisponible, saisie manuelle...")
+        input_file = input("Fichier CSV source (nom;os;version): ").strip()
+        
+        if not input_file:
+            print("Opération annulée.")
+            return
+    
+    # Construire le nom du fichier de sortie
+    input_path = Path(input_file)
+    output_file = input_path.stem + "_eol" + input_path.suffix
+    
+    print(f"\nFichier de sortie: {output_file}")
+    
+    # Traiter le fichier
+    if process_csv_file(input_file, output_file):
+        print("\n" + "="*64)
+        
+        # Télécharger directement le fichier
+        print("\nChoix du dossier d'export du CSV EOL :")
+        dest_path = get_destination_path()
+        
+        if dest_path:
+            try:
+                dest_file = os.path.join(dest_path, str(output_file))
+                shutil.copy(output_file, dest_file)
+                print(f"\nFichier téléchargé: {dest_file}")
+                
+                # Supprimer le fichier du projet après téléchargement
+                try:
+                    os.remove(output_file)
+                except Exception as e:
+                    print(f"Impossible de supprimer le fichier temporaire: {e}")
+            except Exception as e:
+                print(f"Erreur lors du téléchargement: {e}")
+        
+        print("\n" + "="*64)
+    else:
+        print("\n" + "="*64)
+
+
+
 
 def list_os_versions():
     """Affiche toutes les versions d'un OS avec leurs dates de fin de vie"""
-    print("\n⏳ Récupération de la liste des OS...")
+    print("\nRécupération de la liste des OS...")
     
     products = fetch_eol_products()
     if products is None:
@@ -299,15 +545,17 @@ def get_eol_info():
     """Point d'entrée principal du Module 3"""
     while True:
         display_menu()
-        choice = input("Choisir (0-2): ").strip()
+        choice = input("Choisir (0-3): ").strip()
         
         if choice == "1":
             scan_network_menu()
         elif choice == "2":
             list_os_versions()
+        elif choice == "3":
+            csv_import_menu()
         elif choice == "0":
             break
         else:
-            print("Choix invalide. Veuillez sélectionner 0, 1 ou 2.")
+            print("Choix invalide. Veuillez sélectionner 0, 1, 2 ou 3.")
         
         input("\nAppuyez sur Entrée pour continuer...")
