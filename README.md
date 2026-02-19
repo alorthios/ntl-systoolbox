@@ -30,6 +30,8 @@ python -m src.main
 - **Module 1**: Server Statistics (CPU, RAM, Disk, Uptime)
 - **Module 2**: MySQL Database Queries
 - **Module 3**: End of Life Information
+  - **Fonctionnalité 1**: Scanner réseau pour détecter les OS
+  - **Fonctionnalité 2**: Lister toutes les versions d'un OS avec dates de fin de vie (via API endoflife.date)
 
 ## Project Structure
 

@@ -85,18 +85,7 @@ def handle_module_2():
 
 def handle_module_3():
     """Handle Module 3 - End of Life Info"""
-    while True:
-        module3_eol.display_menu()
-        choice = input("\nChoisir (0-1): ").strip()
-        
-        if choice == "0":
-            break
-        elif choice == "1":
-            module3_eol.get_eol_info()
-        else:
-            print("\n❌ Choix invalide. Veuillez réessayer.")
-        
-        input("\nAppuyez sur Entrée pour continuer...")
+    module3_eol.get_eol_info()
 
 
 def main():
