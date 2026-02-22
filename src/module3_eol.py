@@ -2,7 +2,12 @@
 NTL-SysToolbox - Module 3 - End of Life Information & Network Scanning
 Détecte les OS présents sur un réseau et fournit les dates de fin de vie
 """
-import nmap
+try:
+    import nmap
+    NMAP_AVAILABLE = True
+except ImportError:
+    NMAP_AVAILABLE = False
+    
 import socket
 import re
 import requests
@@ -149,6 +154,10 @@ def scan_network(subnet):
     Retourne:
         nmap.PortScanner: objet résultat nmap ou None si erreur
     """
+    if not NMAP_AVAILABLE:
+        print("Erreur: nmap n'est pas disponible.\nInstallez nmap avant de continuer.")
+        return None
+    
     # Valider le format de la plage réseau avant de scanner
     if not validate_subnet(subnet):
         print(f"Format invalide. Utilisez le format CIDR (ex: 192.168.1.0/24)")
@@ -259,6 +268,19 @@ def display_scan_results(nm):
 
 def scan_network_menu():
     """Menu pour scanner une plage réseau"""
+    if not NMAP_AVAILABLE:
+        print("\n" + "="*64)
+        print("ERREUR: NMAP NON DISPONIBLE".center(64))
+        print("="*64 + "\n")
+        print("Pour utiliser le scanner réseau, installez nmap:")
+        print("\n  Windows:")
+        print("    - Téléchargez depuis: https://nmap.org/download.html")
+        print("    - Ou: choco install nmap")
+        print("\n  Ubuntu/Linux:")
+        print("    - apt-get install nmap")
+        print("\n")
+        return
+    
     subnet = input("\nEntrez la plage réseau (Enter pour 192.168.10.0/24): ").strip()
     
     if not subnet:
@@ -277,6 +299,8 @@ def get_eol_date_for_version(product_name, version):
     """
     Récupère la date EOL pour une version spécifique d'un OS
     
+    Gère les variantes de versions (ex: Windows 10-20h2 → 10)
+    
     Retourne:
         tuple: (eol_date, is_lts) ou (None, False) si non trouvé
     """
@@ -285,9 +309,31 @@ def get_eol_date_for_version(product_name, version):
         if not cycles:
             return None, False
         
-        # Cherche la version exacte
+        # Normaliser la version: extraire la partie principale
+        # Ex: "10-20h2" → "10", "22.04" → "22.04"
+        version_normalized = version.split('-')[0].lower()
+        version_original = str(version).lower()
+        
+        # Cherche d'abord une correspondance exacte
         for cycle in cycles:
-            if str(cycle.get('cycle', '')).lower() == str(version).lower():
+            cycle_str = str(cycle.get('cycle', '')).lower()
+            if cycle_str == version_original or cycle_str == version_normalized:
+                eol_str = cycle.get('eol', None)
+                is_lts = cycle.get('lts', False)
+                
+                if eol_str and eol_str != "False":
+                    try:
+                        eol_date = datetime.strptime(str(eol_str), "%Y-%m-%d").date()
+                        return eol_date, is_lts
+                    except ValueError:
+                        pass
+                
+                return eol_str, is_lts
+        
+        # Si pas trouvé, cherche avec la version normalisée
+        for cycle in cycles:
+            cycle_str = str(cycle.get('cycle', '')).lower()
+            if cycle_str == version_normalized:
                 eol_str = cycle.get('eol', None)
                 is_lts = cycle.get('lts', False)
                 
