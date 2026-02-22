@@ -20,4 +20,3 @@ MYSQL_CONFIG = {
 # Application Settings
 APP_NAME = "NTL-SysToolbox"
 APP_VERSION = "2.0.0"
-DEBUG = False

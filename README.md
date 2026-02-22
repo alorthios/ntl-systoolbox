@@ -33,11 +33,24 @@ pip install -r requirements.txt
    - Éditer `config.py` pour ajouter les identifiants MySQL
    - Ou créer un fichier `.env`:
 ```
+# MySQL Configuration
 MYSQL_HOST=localhost
 MYSQL_USER=root
 MYSQL_PASSWORD=your_password
 MYSQL_DATABASE=your_database
 MYSQL_PORT=3306
+
+# Linux Server (Ubuntu/Debian)
+LINUX_SERVER_HOST=192.168.x.x
+LINUX_SERVER_USER=username
+LINUX_SERVER_PASSWORD=password
+LINUX_SERVER_PORT=22
+
+# Windows Server
+WINDOWS_SERVER_HOST=192.168.x.x
+WINDOWS_SERVER_USER=username
+WINDOWS_SERVER_PASSWORD=password
+WINDOWS_SERVER_PORT=22
 ```
 
 ## Utilisation
@@ -51,13 +64,29 @@ L'application affiche un menu interactif avec 3 modules.
 ## Modules
 
 ### Module 1 - Statistiques Serveurs
-Affiche les statistiques système en temps réel:
-- **CPU Usage**: Utilisation du processeur (%)
-- **RAM Usage**: Mémoire disponible vs utilisée (GB)
-- **Disk Usage**: Espace disque par volume
-- **System Uptime**: Durée de fonctionnement depuis le dernier démarrage
+Monitoring avancé des serveurs Windows et Linux distants via SSH :
 
-*État: Placeholder en développement - structure disponible pour implémentation*
+**Option 1 - Vérifier état AD/DNS (A développer)**
+- Structure placée pour vérification de l'Active Directory et DNS
+
+**Option 2 - Vérifier état MySQL (A développer)**
+- Structure placée pour vérification de la connectivité MySQL
+
+**Option 3 - Windows Server Distant**
+- Connexion SSH au serveur Windows Server 2022+
+- Affiche statistiques en temps réel :
+  - **Uptime**: Durée depuis dernier démarrage (jours/heures/minutes)
+  - **CPU**: Utilisation processeur (%) et nombre de cœurs logiques
+  - **RAM**: Utilisation mémoire (%) avec total/utilisée/disponible en GB
+  - **DISQUES**: Liste de tous les disques logiques avec utilisation
+
+**Option 4 - Ubuntu/Linux Server Distant**
+- Connexion SSH au serveur Ubuntu/Linux via SSH
+- Affiche statistiques en temps réel :
+  - **Uptime**: Durée depuis dernier démarrage
+  - **CPU**: Utilisation processeur (%) et nombre de cœurs logiques
+  - **RAM**: Utilisation mémoire avec métriques détaillées
+  - **PARTITIONS**: Liste de tous les points de montage et utilisation
 
 ### Module 2 - Requêtes MySQL
 Gère une base de données MySQL:
@@ -110,7 +139,8 @@ ntl-systoolbox/
 
 ## Technologies utilisées
 
-- **tkinter**: Dialogues de sélection de fichiers/dossiers
+- **paramiko**: Client SSH pour monitoring distants (Windows/Linux)
+- **tkinter**: Dialogues de sélection de fichiers/dossiers (fallback texte)
 - **pymysql**: Connexion et gestion MySQL
 - **python-nmap**: Scan réseau avec détection OS
 - **requests**: Appels API endoflife.date
@@ -118,11 +148,12 @@ ntl-systoolbox/
 
 ## Dépendances
 
-```
+```txt
 pymysql==1.1.0
 python-dotenv==1.0.0
 python-nmap==0.0.1
 requests==2.31.0
+paramiko>=2.12.0
 ```
 
 ## Exemple d'utilisation
@@ -149,8 +180,20 @@ Menu Principal > Module 3 > Option 1
 → Affiche résultats avec 3 hosts détectés
 ```
 
-## Améliorations v2.0.0
+## Historique des versions
 
+### v2.0.1 (22 février 2026)
+✅ Standardisation étendue :
+- Docstrings unififiées avec format `Args:/Retourne:` systématique
+- Tous les fichiers 100% en français (main.py, docstrings, commentaires)
+- Sections séparatrice cohérentes dans tous les modules
+- Suppression des sections vides / commentaires inutiles
+✅ Infrastructure SSH :
+- Refactorisation complète des fonctions SSH dans utils.py
+- Crédentiels centralisés dans .env
+- Support complet Windows Server 2022 + Ubuntu 20.04+
+
+### v2.0.0
 ✅ Nettoyage du code: Suppression des imports inutilisés et du code mort
 ✅ Cohérence: Tous les modules suivent la même structure et style
 ✅ Documentation: Commentaires améliorés pour compréhension étudiante

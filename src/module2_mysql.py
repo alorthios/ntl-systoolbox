@@ -7,13 +7,16 @@ from pymysql import Error
 import csv
 import os
 from datetime import datetime
-from .utils import get_destination_path
-
-# Charger la configuration depuis la racine du projet
-import sys
 from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent))
+import sys
+
+# Ajouter le répertoire parent (racine du projet) au path pour importer config
+_project_root = Path(__file__).parent.parent
+if str(_project_root) not in sys.path:
+    sys.path.insert(0, str(_project_root))
+
 from config import MYSQL_CONFIG
+from .utils import get_destination_path
 
 
 # ============================================================================
@@ -28,7 +31,7 @@ def get_mysql_connection():
     La syntaxe **MYSQL_CONFIG dépacke le dictionnaire en paramètres nommés.
     
     Retourne:
-        connexion MySQL ou None si erreur de connexion
+        pymysql.Connection: Connexion MySQL ou None si erreur de connexion
     """
     try:
         # Dépackage du dictionnaire: **MYSQL_CONFIG devient host=..., user=..., etc.

@@ -118,6 +118,9 @@ def validate_subnet(subnet):
     - 10.0.0.0/8 (réseau privé classe A)
     - 172.16.0.0/12 (réseau privé classe B)
     
+    Args:
+        subnet: Plage réseau en format CIDR
+    
     Retourne:
         bool: True si format CIDR valide, False sinon
     """
@@ -189,7 +192,15 @@ def scan_network(subnet):
 
 
 def get_os_guess(nm_host):
-    """Détermine l'OS détecté basé sur les ports et le fingerprinting"""
+    """
+    Détermine l'OS détecté basé sur les ports et le fingerprinting
+    
+    Args:
+        nm_host: Données nmap du host scanné
+    
+    Retourne:
+        str: String décrivant l'OS détecté
+    """
     try:
         os_matches = nm_host.get('osmatch')
         if os_matches and len(os_matches) > 0:
@@ -232,7 +243,12 @@ def get_os_guess(nm_host):
 
 
 def display_scan_results(nm):
-    """Affiche les résultats du scan réseau"""
+    """
+    Affiche les résultats du scan réseau
+    
+    Args:
+        nm: Objet nmap.PortScanner avec résultats du scan
+    """
     print("\n" + "="*64)
     print("RÉSULTATS DU SCAN RÉSEAU".center(64))
     print("="*64 + "\n")
@@ -267,7 +283,10 @@ def display_scan_results(nm):
 
 
 def scan_network_menu():
-    """Menu pour scanner une plage réseau"""
+    """
+    Menu interactif pour scanner une plage réseau
+    Lance un scan nmap et affiche les résultats
+    """
     if not NMAP_AVAILABLE:
         print("\n" + "="*64)
         print("ERREUR: NMAP NON DISPONIBLE".center(64))
@@ -354,6 +373,9 @@ def get_eol_date_for_version(product_name, version):
 def determine_status(eol_date):
     """
     Détermine le statut basé sur la date EOL
+    
+    Args:
+        eol_date: Date EOL ou None
     
     Retourne:
         str: "Support actif", "EOL dans X jours" ou "Fin de vie (X jours)"
@@ -451,10 +473,13 @@ def display_imported_csv(input_file):
     """
     Affiche le contenu du fichier CSV importé par l'utilisateur
     
-    Affiche le CSV original avec colonnes:
+    Format d'affichage :
     - NOM: nom du serveur/système
     - OS: système d'exploitation
     - VERSION: numéro de version
+    
+    Args:
+        input_file: Chemin du fichier CSV à afficher
     """
     try:
         input_path = Path(input_file)
@@ -493,7 +518,10 @@ def display_imported_csv(input_file):
 
 
 def csv_import_menu():
-    """Menu pour importer et traiter un fichier CSV"""
+    """
+    Menu interactif pour importer et traiter un fichier CSV
+    Enrichit le CSV avec les informations de fin de vie
+    """
     print("\n" + "="*64)
     print("IMPORT CSV - EOL CHECK".center(64))
     print("="*64 + "\n")
@@ -545,7 +573,10 @@ def csv_import_menu():
 
 
 def list_os_versions():
-    """Affiche toutes les versions d'un OS avec leurs dates de fin de vie"""
+    """
+    Affiche toutes les versions d'un OS avec leurs dates de fin de vie
+    Récupère les données via l'API endoflife.date
+    """
     print("\nRécupération de la liste des OS...")
     
     products = fetch_eol_products()

@@ -1,18 +1,26 @@
 """
-NTL-SysToolbox - Main Menu and Navigation
-Entry point for the CLI application
+NTL-SysToolbox - Menu principal et navigation
+Point d'entrée de l'application CLI
 """
 
 import sys
+from dotenv import load_dotenv
 
-# Import modules
+# Charger les variables d'environnement au démarrage
+load_dotenv()
+
+# Importer les modules
 from . import module1_server_stats
 from . import module2_mysql
 from . import module3_eol
 
 
+# ============================================================================
+# Affichage - Bannière et menus
+# ============================================================================
+
 def display_banner():
-    """Display the ASCII art banner for NTL-SysToolbox"""
+    """Affiche la bannière ASCII de NTL-SysToolbox"""
     banner = """
 ╔══════════════════════════════════════════════════════════════╗
 ║                                                              ║
@@ -24,7 +32,7 @@ def display_banner():
 
 
 def display_main_menu():
-    """Display the main menu and return user choice"""
+    """Affiche le menu principal et retourne le choix de l'utilisateur"""
     display_banner()
     print("\n" + "="*64)
     print("MENU PRINCIPAL".center(64))
@@ -46,18 +54,26 @@ def display_main_menu():
     return choice
 
 
+# ============================================================================
+# Gestionnaires de modules
+# ============================================================================
+
 def handle_module_1():
-    """Handle Module 1 - Server Statistics"""
+    """Gère le Module 1 - Statistiques serveur"""
     while True:
         module1_server_stats.display_menu()
-        choice = input("\nChoisir (0-2): ").strip()
+        choice = input("\nChoisir (0-4): ").strip()
         
         if choice == "0":
             break
         elif choice == "1":
-            module1_server_stats.get_server_stats()
+            module1_server_stats.check_ad_dns()
         elif choice == "2":
-            module1_server_stats.get_uptime()
+            module1_server_stats.check_mysql()
+        elif choice == "3":
+            module1_server_stats.check_remote_server(server_type='windows')
+        elif choice == "4":
+            module1_server_stats.check_remote_server(server_type='ubuntu')
         else:
             print("\nChoix invalide. Veuillez réessayer.")
         
@@ -65,17 +81,22 @@ def handle_module_1():
 
 
 def handle_module_2():
-    """Handle Module 2 - MySQL Database Management"""
+    """Gère le Module 2 - Gestion base de données MySQL"""
     module2_mysql.get_mysql_menu()
 
 
 def handle_module_3():
-    """Handle Module 3 - End of Life Info"""
+    """Gère le Module 3 - Informations End of Life"""
     module3_eol.get_eol_info()
 
 
+
+# ============================================================================
+# Point d'entrée
+# ============================================================================
+
 def main():
-    """Main application loop"""
+    """Boucle principale de l'application"""
     try:
         while True:
             choice = display_main_menu()
