@@ -175,15 +175,15 @@ def scan_network(subnet):
         common_ports = "22,80,443,445,3389,5985,8080,8443"
         
         try:
-            # Tentative 1: Scan complet avec OS fingerprinting
-            nm.scan(hosts=subnet, arguments=f'-p {common_ports} -O -sV')
+            # Tentative 1: Scan complet avec OS fingerprinting et scripts (-Pn pour Windows)
+            nm.scan(hosts=subnet, arguments=f'-Pn -p {common_ports} -O -sV --script nbstat')
         except:
             try:
-                # Tentative 2: Scan avec détection de services uniquement
-                nm.scan(hosts=subnet, arguments=f'-p {common_ports} -sV')
+                # Tentative 2: Scan avec détection de services et nbstat
+                nm.scan(hosts=subnet, arguments=f'-Pn -p {common_ports} -sV --script nbstat')
             except:
                 # Tentative 3: Scan simple des ports
-                nm.scan(hosts=subnet, arguments=f'-p {common_ports}')
+                nm.scan(hosts=subnet, arguments=f'-Pn -p {common_ports}')
         
         return nm
     except nmap.PortScannerError as e:
@@ -259,18 +259,65 @@ def display_scan_results(nm):
         print("Aucun hôte détecté.")
         return
     
-    print(f"Hôtes détectés: {len(all_hosts)}\n")
+    # Filtrer uniquement les hôtes avec au moins un port ouvert
+    active_hosts = []
+    for host in all_hosts:
+        try:
+            tcp_ports = nm[host].get('tcp', {})
+            open_ports = [p for p, info in tcp_ports.items() if info.get('state') == 'open']
+            if open_ports:
+                active_hosts.append(host)
+        except:
+            pass
+    
+    if not active_hosts:
+        print("Aucun hôte actif détecté avec des ports ouverts.")
+        return
+    
+    print(f"Hôtes détectés: {len(active_hosts)}\n")
     print(f"{'IP':<17} {'HOSTNAME':<17} {'OS DÉTECTÉ':<30}")
     print("-" * 64)
     
-    for host in all_hosts:
+    for host in active_hosts:
         ip_str = str(host)[:16]
         hostname_str = "N/A"
         
+        # Essayer plusieurs méthodes pour récupérer le hostname
         try:
-            hostname_str = socket.gethostbyaddr(host)[0][:16]
+            # Méthode 1: NetBIOS name depuis le script nbstat
+            if 'hostscript' in nm[host]:
+                for script in nm[host]['hostscript']:
+                    if script.get('id') == 'nbstat' and 'output' in script:
+                        output = script['output']
+                        # Extraire "NetBIOS name: XXX" de la sortie
+                        match = re.search(r'NetBIOS name:\s*(\S+)', output)
+                        if match:
+                            hostname_str = match.group(1)[:16]
+                            break
         except:
             pass
+        
+        # Méthode 2: Hostname détecté par nmap
+        if hostname_str == "N/A":
+            try:
+                if 'hostnames' in nm[host]:
+                    hostnames = nm[host]['hostnames']
+                    if hostnames and len(hostnames) > 0:
+                        for hostname_entry in hostnames:
+                            if isinstance(hostname_entry, dict) and 'name' in hostname_entry:
+                                name = hostname_entry['name']
+                                if name and name.strip():
+                                    hostname_str = name[:16]
+                                    break
+            except:
+                pass
+        
+        # Méthode 3: DNS inverse si pas trouvé par nmap
+        if hostname_str == "N/A":
+            try:
+                hostname_str = socket.gethostbyaddr(host)[0][:16]
+            except:
+                pass
         
         try:
             os_str = str(get_os_guess(nm[host]))[:29]
@@ -300,10 +347,10 @@ def scan_network_menu():
         print("\n")
         return
     
-    subnet = input("\nEntrez la plage réseau (Enter pour 192.168.10.0/24): ").strip()
+    subnet = input("\nEntrez la plage réseau (Enter pour 192.168.100.0/24): ").strip()
     
     if not subnet:
-        subnet = "192.168.10.0/24"
+        subnet = "192.168.100.0/24"
     
     nm = scan_network(subnet)
     if nm is not None:

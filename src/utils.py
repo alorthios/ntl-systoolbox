@@ -53,9 +53,62 @@ def get_file_path(title="Sélectionner un fichier", filetypes=None):
         
         return file_path
     except:
-        # Fallback: demander le chemin en texte si la boîte de dialogue échoue
-        print("Boîte de dialogue indisponible, saisie manuelle...")
-        return input("Chemin du fichier: ").strip()
+        # Fallback: lister les fichiers du répertoire courant
+        print("Boîte de dialogue indisponible, liste des fichiers disponibles...")
+        current_dir = os.getcwd()
+        
+        # Extraire les extensions à chercher depuis filetypes
+        extensions = []
+        for file_type in filetypes:
+            if len(file_type) > 1:
+                pattern = file_type[1]
+                if pattern != "*.*":
+                    extensions.append(pattern)
+        
+        # Lister les fichiers
+        available_files = []
+        try:
+            for file in os.listdir(current_dir):
+                file_path = os.path.join(current_dir, file)
+                if os.path.isfile(file_path):
+                    # Si des extensions spécifiques, filtrer
+                    if extensions:
+                        for ext in extensions:
+                            if file.endswith(ext.replace("*", "")):
+                                available_files.append(file)
+                                break
+                    else:
+                        available_files.append(file)
+        except PermissionError:
+            available_files = []
+        
+        # Afficher les fichiers disponibles
+        if available_files:
+            print(f"Fichiers disponibles dans {current_dir}:")
+            for i, f in enumerate(available_files, 1):
+                print(f"  {i}. {f}")
+            choice = input("Sélectionner un fichier (numéro ou chemin): ").strip()
+            
+            # Si un numéro
+            if choice.isdigit() and 1 <= int(choice) <= len(available_files):
+                return os.path.join(current_dir, available_files[int(choice) - 1])
+            # Si un chemin
+            elif os.path.isfile(choice):
+                return choice
+            elif os.path.isfile(os.path.join(current_dir, choice)):
+                return os.path.join(current_dir, choice)
+        
+        # Fallback final: demander le chemin
+        file_path = input(f"Chemin du fichier (répertoire courant: {current_dir}): ").strip()
+        if not file_path:
+            return None
+        
+        # Chemin absolu ou relatif
+        if os.path.isabs(file_path):
+            return file_path if os.path.isfile(file_path) else None
+        else:
+            full_path = os.path.join(current_dir, file_path)
+            return full_path if os.path.isfile(full_path) else None
 
 
 def get_destination_path(title="Choix du dossier de destination ..."):
