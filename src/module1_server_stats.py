@@ -2,6 +2,7 @@
 NTL-SysToolbox - Module 1: Server Statistics & Monitoring
 Vérification des ressources serveur: Windows Server et Ubuntu/Linux via SSH
 """
+import time
 from .utils import (
     get_ssh_credentials, ssh_connect, execute_ssh_command, format_bytes
 )
@@ -16,17 +17,10 @@ def display_menu():
     print("\n" + "="*64)
     print("MODULE 1 - STATISTIQUES SERVEURS".center(64))
     print("="*64 + "\n")
-    print("  1. Vérifier état AD / DNS")
-    print("      (Contrôleurs de domaine)")
-    print()
-    print("  2. Vérifier état MySQL")
-    print("      (Base de données serveur)")
-    print()
-    print("  3. Vérifier ressources Windows Server")
-    print("      (CPU, RAM, Disk, Uptime)")
-    print()
-    print("  4. Vérifier ressources Ubuntu/Linux Server")
-    print("      (CPU, RAM, Disk, Uptime)")
+    print("  1. Vérifier état AD / DNS (Contrôleurs de domaine)")
+    print("  2. Vérifier état MySQL (Base de données serveur)")
+    print("  3. Vérifier ressources Windows Server (CPU, RAM, Disk, Uptime)")
+    print("  4. Vérifier ressources Linux Server (CPU, RAM, Disk, Uptime)")
     print()
     print("  0. Retour au menu principal")
     print()
@@ -34,7 +28,24 @@ def display_menu():
 
 
 # ============================================================================
-# Placeholder Functions (1 & 2)
+# Helper Functions
+# ============================================================================
+
+def display_check_results(results):
+    """
+    Affiche les résultats de vérification de services
+    
+    Args:
+        results: Liste de tuples (label, ok, status)
+    """
+    print("\nRésultat :")
+    for label, ok, status in results:
+        print(f"  {label:<35} [{'OK' if ok else 'ERREUR'}]  {status}")
+    print("\n" + "="*64)
+
+
+# ============================================================================
+# Service Check Functions
 # ============================================================================
 
 def check_ad_dns():
@@ -50,31 +61,26 @@ def check_ad_dns():
         try:
             ad_status = execute_ssh_command(client, 'powershell -Command "Get-Service NTDS | Select-Object -ExpandProperty Status"')
             ad_ok = ad_status and ad_status.strip().lower() == 'running'
-            results.append(("Active Directory (NTDS)", ad_ok, ad_status.strip() if ad_status else 'inconnu'))
+            results.append(("Active Directory (Get-Service)", ad_ok, ad_status.strip() if ad_status else 'inconnu'))
         except Exception as e:
-            results.append(("Active Directory (NTDS)", False, f"Erreur: {e}"))
+            results.append(("Active Directory (Get-Service)", False, f"Erreur: {e}"))
         # DNS
         try:
             dns_status = execute_ssh_command(client, 'powershell -Command "Get-Service DNS | Select-Object -ExpandProperty Status"')
             dns_ok = dns_status and dns_status.strip().lower() == 'running'
-            results.append(("DNS", dns_ok, dns_status.strip() if dns_status else 'inconnu'))
+            results.append(("DNS (Get-Service)", dns_ok, dns_status.strip() if dns_status else 'inconnu'))
         except Exception as e:
-            results.append(("DNS", False, f"Erreur: {e}"))
+            results.append(("DNS (Get-Service)", False, f"Erreur: {e}"))
         client.close()
     else:
         results.append(("Connexion SSH Windows", False, "Impossible de se connecter"))
-    # Affichage homogène
-    print("\nRésultat :")
-    for label, ok, status in results:
-        print(f"  {label:<28} [{'OK' if ok else 'ERREUR'}]  {status}")
-    print("\n" + "="*64)
+    
+    # Affichage des résultats
+    display_check_results(results)
 
 
 def check_mysql():
     """Vérification état MySQL (À développer)"""
-    print("\n" + "="*64)
-    print("CHECK MYSQL".center(64))
-    print("="*64 + "\n")
     print("\n" + "="*64)
     print("VÉRIFICATION DU SERVICE MYSQL (Linux)".center(64))
     print("="*64)
@@ -82,29 +88,18 @@ def check_mysql():
     client = ssh_connect(creds['hostname'], creds['username'], creds['password'], creds['port'])
     results = []
     if client:
-        # systemctl
         try:
             output = execute_ssh_command(client, "systemctl is-active mysql")
             ok = output.strip() == "active"
             results.append(("MySQL (systemctl)", ok, output.strip()))
         except Exception as e:
             results.append(("MySQL (systemctl)", False, f"Erreur: {e}"))
-        # service (fallback)
-        if not results[0][1]:
-            try:
-                output = execute_ssh_command(client, "service mysql status")
-                ok = "active (running)" in output
-                results.append(("MySQL (service)", ok, output.strip()))
-            except Exception as e2:
-                results.append(("MySQL (service)", False, f"Erreur: {e2}"))
         client.close()
     else:
         results.append(("Connexion SSH Linux", False, "Impossible de se connecter"))
-    # Affichage homogène
-    print("\nRésultat :")
-    for label, ok, status in results:
-        print(f"  {label:<28} [{'OK' if ok else 'ERREUR'}]  {status}")
-    print("\n" + "="*64)
+    
+    # Affichage des résultats
+    display_check_results(results)
 
 
 # ============================================================================
@@ -154,8 +149,6 @@ def get_remote_cpu_linux(client):
         dict: Dictionnaire avec clés percent, logical_count ou None
     """
     try:
-        import time
-        
         output = execute_ssh_command(client, "grep -c ^processor /proc/cpuinfo")
         logical_count = int(output.strip()) if output else 0
         
@@ -482,11 +475,6 @@ def display_remote_stats(client, server_type='ubuntu'):
         client: Client SSH paramiko connecté
         server_type: Type de serveur ('ubuntu' ou 'windows')
     """
-    print("\n" + "="*64)
-    title = "STATISTIQUES - WINDOWS SERVER DISTANT" if server_type == 'windows' else "STATISTIQUES - UBUNTU/LINUX SERVER"
-    print(title.center(64))
-    print("="*64 + "\n")
-    
     # Sélectionner les fonctions appropriées selon le type de serveur
     if server_type == 'windows':
         uptime = get_remote_uptime_windows(client)
@@ -498,6 +486,8 @@ def display_remote_stats(client, server_type='ubuntu'):
         cpu = get_remote_cpu_linux(client)
         mem = get_remote_memory_linux(client)
         disks = get_remote_disk_linux(client)
+    
+    print()
     
     # Uptime
     if uptime:
@@ -536,8 +526,7 @@ def display_remote_stats(client, server_type='ubuntu'):
             
             print(f"{device:<20} {total:<15} {used:<15} {free:<10}")
     
-    print()
-    print("="*64)
+    print("\n" + "="*64)
 
 
 # ============================================================================
@@ -551,10 +540,10 @@ def check_remote_server(server_type='ubuntu'):
     Args:
         server_type: Type de serveur ('ubuntu' ou 'windows')
     """
-    title = "WINDOWS SERVER" if server_type == 'windows' else "UBUNTU/LINUX SERVER"
-    print("\n" + "-"*64)
+    title = "WINDOWS SERVER" if server_type == 'windows' else "LINUX SERVER"
+    print("\n" + "="*64)
     print(f"CHECK RESSOURCES {title}".center(64))
-    print("-"*64)
+    print("="*64)
     
     creds = get_ssh_credentials(server_type=server_type)
     client = ssh_connect(creds['hostname'], creds['username'], creds['password'], creds['port'])

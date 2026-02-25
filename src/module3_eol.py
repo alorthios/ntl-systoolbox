@@ -16,7 +16,7 @@ import os
 import shutil
 from datetime import datetime
 from pathlib import Path
-from .utils import get_destination_path, get_file_path
+from .utils import get_destination_path, get_file_path, validate_subnet
 
 
 EOL_API_BASE = "https://endoflife.date/api"
@@ -98,45 +98,12 @@ def display_menu():
     print("  0. Retour au menu principal")
     print()
     print("="*64)
+    print()
 
 
 # ============================================================================
 # Network Scanning Functions - Fonction n°1
 # ============================================================================
-
-def validate_subnet(subnet):
-    """
-    Valide une plage réseau au format CIDR
-    
-    Format CIDR (Classless Inter-Domain Routing):
-    - XXX.XXX.XXX.XXX/NN
-    - XXX = octet IP (0-255)
-    - NN = masque de réseau (8-32 pour IPv4)
-    
-    Exemples valides:
-    - 192.168.1.0/24 (réseau local classique)
-    - 10.0.0.0/8 (réseau privé classe A)
-    - 172.16.0.0/12 (réseau privé classe B)
-    
-    Args:
-        subnet: Plage réseau en format CIDR
-    
-    Retourne:
-        bool: True si format CIDR valide, False sinon
-    """
-    # Expression régulière pour vérifier le format X.X.X.X/NN
-    cidr_pattern = r'^(\d{1,3}\.){3}\d{1,3}/\d{1,2}$'
-    if not re.match(cidr_pattern, subnet):
-        return False
-    
-    # Vérification que chaque octet est entre 0-255
-    ip_part = subnet.split('/')[0]
-    for octet in ip_part.split('.'):
-        if int(octet) > 255:
-            return False
-    
-    return True
-
 
 def scan_network(subnet):
     """
@@ -166,8 +133,7 @@ def scan_network(subnet):
         print(f"Format invalide. Utilisez le format CIDR (ex: 192.168.1.0/24)")
         return None
     
-    print(f"\nScan en cours (cela peut prendre du temps)...")
-    print(f"   Plage: {subnet}\n")
+    print(f"\nScan en cours sur {subnet}...\n")
     
     try:
         nm = nmap.PortScanner()
@@ -249,10 +215,6 @@ def display_scan_results(nm):
     Args:
         nm: Objet nmap.PortScanner avec résultats du scan
     """
-    print("\n" + "="*64)
-    print("RÉSULTATS DU SCAN RÉSEAU".center(64))
-    print("="*64 + "\n")
-    
     all_hosts = nm.all_hosts()
     
     if not all_hosts:
@@ -292,7 +254,8 @@ def display_scan_results(nm):
                         # Extraire "NetBIOS name: XXX" de la sortie
                         match = re.search(r'NetBIOS name:\s*(\S+)', output)
                         if match:
-                            hostname_str = match.group(1)[:16]
+                            # Nettoyer le hostname (retirer virgules, espaces)
+                            hostname_str = match.group(1).strip(',').strip()[:16]
                             break
         except:
             pass
@@ -347,7 +310,12 @@ def scan_network_menu():
         print("\n")
         return
     
-    subnet = input("\nEntrez la plage réseau (Enter pour 192.168.100.0/24): ").strip()
+    # Afficher l'en-tête
+    print("\n" + "="*64)
+    print("SCAN D'UNE PLAGE RÉSEAU".center(64))
+    print("="*64 + "\n")
+    
+    subnet = input("Entrez la plage réseau (Par défaut: 192.168.100.0/24): ").strip()
     
     if not subnet:
         subnet = "192.168.100.0/24"
@@ -465,8 +433,6 @@ def process_csv_file(input_file, output_file):
         
         results = []
         
-        print(f"\nTraitement du fichier {input_file}...")
-        
         # Lire le fichier CSV
         with open(input_path, 'r', encoding='utf-8') as f:
             reader = csv.reader(f, delimiter=';')
@@ -508,7 +474,6 @@ def process_csv_file(input_file, output_file):
             writer.writerows(results)
         
         print(f"\nFichier généré: {output_file}")
-        print(f"   {len(results)} entrées traitées")
         return True, results
     
     except Exception as e:
@@ -534,9 +499,9 @@ def display_imported_csv(input_file):
             print(f"Fichier introuvable: {input_file}")
             return
         
-        print("\n" + "="*64)
+        print("\n" + "-"*64)
         print("CONTENU DU FICHIER IMPORTÉ".center(64))
-        print("="*64 + "\n")
+        print("-"*64 + "\n")
         
         # En-têtes avec largeurs de colonnes
         print(f"{'NOM':<20} {'OS':<20} {'VERSION':<24}")
@@ -559,7 +524,7 @@ def display_imported_csv(input_file):
                     version = row[2].strip()[:24]
                     print(f"{nom:<20} {os:<20} {version:<24}")
         
-        print("\n" + "="*64)
+        print("\n" + "-"*64)
     except Exception as e:
         print(f"Erreur lors de l'affichage du fichier: {e}")
 
@@ -624,8 +589,6 @@ def list_os_versions():
     Affiche toutes les versions d'un OS avec leurs dates de fin de vie
     Récupère les données via l'API endoflife.date
     """
-    print("\nRécupération de la liste des OS...")
-    
     products = fetch_eol_products()
     if products is None:
         return
@@ -651,8 +614,6 @@ def list_os_versions():
     except ValueError:
         print("Veuillez entrer un numéro valide.")
         return
-    
-    print(f"\nRécupération des versions de {selected_os}...")
     
     cycles = fetch_os_versions(selected_os)
     if cycles is None or len(cycles) == 0:

@@ -1,5 +1,11 @@
-pymysql==1.1.0
+# Gestion des variables d'environnement (.env)
 python-dotenv==1.0.0
+
+# Scan réseau et détection d'hôtes
 python-nmap==0.7.1
+
+# Requêtes HTTP pour l'API endoflife.date
 requests==2.31.0
+
+# Client SSH pour connexions distantes (Windows/Linux)
 paramiko>=2.12.0

@@ -1,57 +1,105 @@
-# NTL-SysToolbox v2.0.0
+# NTL-SysToolbox v3.0.0
 
-**Application de gestion système avancée** - Contient des outils pour:
-- Monitoring de serveurs (statistiques CPU, RAM, Disk, Uptime)
-- Gestion de bases de données MySQL (sauvegarde SQL, export CSV)
-- Analyse End of Life (scan réseau, dates de support des OS)
+**Application CLI de gestion système avancée** pour l'administration de serveurs Windows et Linux.
+
+## 📋 Table des matières
+- [Fonctionnalités](#fonctionnalités)
+- [Prérequis](#prérequis)
+- [Installation](#installation)
+- [Configuration](#configuration)
+- [Utilisation](#utilisation)
+- [Modules](#modules)
+- [Technologies](#technologies-utilisées)
+- [Structure du projet](#structure-du-projet)
+- [Exemples](#exemples-dutilisation)
+- [Historique des versions](#historique-des-versions)
+- [Licence](#licence)
+
+## Fonctionnalités
+
+### 🖥️ Module 1 - Monitoring Serveurs
+- Vérification des services AD/DNS et MySQL
+- Statistiques en temps réel (CPU, RAM, Disk, Uptime)
+- Support Windows Server 2022+ et Linux/Ubuntu via SSH
+
+### 🗄️ Module 2 - Gestion MySQL
+- Sauvegarde complète de bases de données (mysqldump via SSH)
+- Export de tables au format CSV
+- Sélection interactive des bases de données et tables
+
+### 🔍 Module 3 - End of Life / Scan Réseau
+- Scan réseau avec détection d'OS (nmap)
+- Consultation des dates de fin de support (API endoflife.date)
+- Enrichissement de fichiers CSV avec informations EOL
+
+## Prérequis
+
+### Système
+- **Python 3.7+**
+- **nmap** (pour le scan réseau du Module 3)
+  - Windows: [Télécharger depuis nmap.org](https://nmap.org/download.html)
+  - Linux: `sudo apt-get install nmap`
+  - macOS: `brew install nmap`
+
+### Serveurs distants
+- **Accès SSH** configuré sur les serveurs Windows et Linux
+- **MySQL/MariaDB** installé et accessible sur le serveur Linux (Module 2)
+- **Active Directory** et **DNS** configurés sur Windows Server (Module 1)
 
 ## Installation
 
-### Prérequis
-- **Python 3.7+**
-- **nmap** (pour le scan réseau)
-  - Windows: Installer depuis https://nmap.org/download.html
-  - Linux/Mac: `sudo apt-get install nmap` ou `brew install nmap`
+1. **Cloner le dépôt:**
+```bash
+git clone https://github.com/alorthios/ntl-systoolbox.git
+cd ntl-systoolbox
+```
 
-### Étapes d'installation
-
-1. **Créer l'environnement virtuel:**
+2. **Créer l'environnement virtuel:**
 ```bash
 python -m venv venv
 ```
 
-2. **Activer l'environnement virtuel:**
+3. **Activer l'environnement virtuel:**
    - **Windows**: `venv\Scripts\activate`
    - **Linux/Mac**: `source venv/bin/activate`
 
-3. **Installer les dépendances:**
+4. **Installer les dépendances:**
 ```bash
 pip install -r requirements.txt
 ```
 
-4. **Configurer les paramètres (optionnel):**
-   - Éditer `config.py` pour ajouter les identifiants MySQL
-   - Ou créer un fichier `.env`:
+## Configuration
+## Configuration
+
+Créer un fichier `.env` à la racine du projet (utiliser `.env.example` comme modèle) :
+
+```bash
+cp .env.example .env
 ```
-# MySQL Configuration
-MYSQL_HOST=localhost
-MYSQL_USER=root
-MYSQL_PASSWORD=your_password
-MYSQL_DATABASE=your_database
+
+Éditer le fichier `.env` avec vos paramètres :
+
+```env
+# MySQL Configuration (Module 2)
+MYSQL_HOST=192.168.100.21
+MYSQL_USER=votre_user
+MYSQL_PASSWORD=votre_password
 MYSQL_PORT=3306
 
-# Linux Server (Ubuntu/Debian)
-LINUX_SERVER_HOST=192.168.x.x
-LINUX_SERVER_USER=username
-LINUX_SERVER_PASSWORD=password
+# Linux Server (Module 1 & 2)
+LINUX_SERVER_HOST=192.168.100.21
+LINUX_SERVER_USER=votre_user
+LINUX_SERVER_PASSWORD=votre_password
 LINUX_SERVER_PORT=22
 
-# Windows Server
-WINDOWS_SERVER_HOST=192.168.x.x
-WINDOWS_SERVER_USER=username
-WINDOWS_SERVER_PASSWORD=password
+# Windows Server (Module 1)
+WINDOWS_SERVER_HOST=192.168.100.10
+WINDOWS_SERVER_USER=Administrateur
+WINDOWS_SERVER_PASSWORD=votre_password
 WINDOWS_SERVER_PORT=22
 ```
+
+**Note:** Si le fichier `.env` n'est pas configuré, l'application demandera les informations de connexion de manière interactive.
 
 ## Utilisation
 
@@ -66,11 +114,13 @@ L'application affiche un menu interactif avec 3 modules.
 ### Module 1 - Statistiques Serveurs
 Monitoring avancé des serveurs Windows et Linux distants via SSH :
 
-**Option 1 - Vérifier état AD/DNS (A développer)**
-- Structure placée pour vérification de l'Active Directory et DNS
+**Option 1 - Vérifier état AD/DNS**
+- Vérification des services Active Directory (NTDS) et DNS sur serveur Windows
+- Détection via Get-Service
 
-**Option 2 - Vérifier état MySQL (A développer)**
-- Structure placée pour vérification de la connectivité MySQL
+**Option 2 - Vérifier état MySQL**
+- Vérification du service MySQL sur serveur Linux
+- Détection via systemctl is-active
 
 **Option 3 - Windows Server Distant**
 - Connexion SSH au serveur Windows Server 2022+
@@ -88,15 +138,23 @@ Monitoring avancé des serveurs Windows et Linux distants via SSH :
   - **RAM**: Utilisation mémoire avec métriques détaillées
   - **PARTITIONS**: Liste de tous les points de montage et utilisation
 
-### Module 2 - Requêtes MySQL
-Gère une base de données MySQL:
-- **Sauvegarde complète**: Génère un fichier SQL avec DROP/CREATE/INSERT
-  - Format: `nombase_backup_YYYYMMDD_HHMMSS.sql`
-  - Support du typage correct des données (nombres, chaînes, NULL)
-- **Export de table**: Exporte une table sélectionnée au format CSV
-  - Format: `nombase_nomtable_YYYYMMDD_HHMMSS.csv`
-  - Délimiteur: `;` (point-virgule pour Excel français)
-  - Encodage: UTF-8 avec BOM
+### Module 2 - Gestion MySQL
+Gestion de bases de données MySQL distantes via SSH + mysqldump/mysql client :
+
+**Option 1 - Sauvegarde complète:**
+- Connexion SSH au serveur Linux hébergeant MySQL
+- Sélection interactive de la base de données
+- Export via mysqldump avec options complètes (--single-transaction, --routines, --triggers, --events)
+- Transfert SFTP du fichier .sql vers le poste local
+- Format: `nombase_backup_YYYYMMDD_HHMMSS.sql`
+
+**Option 2 - Export de table CSV:**
+- Connexion SSH et sélection de base de données
+- Liste des tables disponibles
+- Export via mysql client avec conversion en CSV (séparateur `;`)
+- Transfert SFTP vers le poste local
+- Format: `nombase_nomtable_YYYYMMDD_HHMMSS.csv`
+- Encodage: UTF-8 avec BOM pour compatibilité Excel
 
 ### Module 3 - End of Life / Scan Réseau
 Détecte les systèmes et fournit les dates de fin de support:
@@ -126,82 +184,29 @@ Détecte les systèmes et fournit les dates de fin de support:
 ```
 ntl-systoolbox/
 ├── src/
+│   ├── __init__.py
 │   ├── main.py                    # Point d'entrée et menu principal
-│   ├── module1_server_stats.py    # Statistiques serveur
-│   ├── module2_mysql.py           # Gestion MySQL
-│   ├── module3_eol.py             # EOL et scan réseau
-│   └── utils.py                   # Fonctions utilitaires partagées
-├── config.py                      # Configuration centralisée
+│   ├── module1_server_stats.py    # Monitoring serveurs (SSH)
+│   ├── module2_mysql.py           # Gestion MySQL (SSH + mysqldump)
+│   ├── module3_eol.py             # Scan réseau et API EOL
+│   └── utils.py                   # Fonctions SSH et utilitaires partagées
+├── .env.example                   # Template de configuration
+├── .env                           # Configuration (à créer, non versionné)
+├── .gitignore                     # Fichiers exclus du versioning
 ├── requirements.txt               # Dépendances Python
-├── README.md                      # This file
-└── .env                          # Variables d'environnement (optionnel)
+└── README.md                      # Documentation
 ```
 
 ## Technologies utilisées
 
-- **paramiko**: Client SSH pour monitoring distants (Windows/Linux)
-- **tkinter**: Dialogues de sélection de fichiers/dossiers (fallback texte)
-- **pymysql**: Connexion et gestion MySQL
-- **python-nmap**: Scan réseau avec détection OS
-- **requests**: Appels API endoflife.date
-- **python-dotenv**: Gestion des variables d'environnement
+| Bibliothèque | Version | Usage |
+|-------------|---------|-------|
+| **python-dotenv** | 1.0.0 | Gestion des variables d'environnement (.env) |
+| **python-nmap** | 0.7.1 | Scan réseau et détection d'hôtes/OS |
+| **requests** | 2.31.0 | Requêtes HTTP vers l'API endoflife.date |
+| **paramiko** | ≥2.12.0 | Client SSH pour connexions distantes et opérations MySQL |
 
-## Dépendances
+**Modules Python standard utilisés:**
+- `tkinter` : Dialogues de sélection de fichiers/dossiers (avec fallback texte)
+- `csv`, `os`, `datetime`, `re` : Traitement de données et système
 
-```txt
-pymysql==1.1.0
-python-dotenv==1.0.0
-python-nmap==0.0.1
-requests==2.31.0
-paramiko>=2.12.0
-```
-
-## Exemple d'utilisation
-
-### Sauvegarde MySQL
-```
-Menu Principal > Module 2 > Option 1
-→ Sélectionne le dossier de destination
-→ Génère: wms_backup_20260219_233514.sql (9KB)
-```
-
-### Export d'une table CSV
-```
-Menu Principal > Module 2 > Option 2
-→ Sélectionne une table dans la liste
-→ Sélectionne le dossier de destination
-→ Génère: wms_stocks_20260219_233520.csv
-```
-
-### Scan réseau
-```
-Menu Principal > Module 3 > Option 1
-→ Saisit plage réseau: 192.168.10.0/24
-→ Affiche résultats avec 3 hosts détectés
-```
-
-## Historique des versions
-
-### v2.0.1 (22 février 2026)
-✅ Standardisation étendue :
-- Docstrings unififiées avec format `Args:/Retourne:` systématique
-- Tous les fichiers 100% en français (main.py, docstrings, commentaires)
-- Sections séparatrice cohérentes dans tous les modules
-- Suppression des sections vides / commentaires inutiles
-✅ Infrastructure SSH :
-- Refactorisation complète des fonctions SSH dans utils.py
-- Crédentiels centralisés dans .env
-- Support complet Windows Server 2022 + Ubuntu 20.04+
-
-### v2.0.0
-✅ Nettoyage du code: Suppression des imports inutilisés et du code mort
-✅ Cohérence: Tous les modules suivent la même structure et style
-✅ Documentation: Commentaires améliorés pour compréhension étudiante
-✅ Widgets: Tous les dialogues utilisent tkinter avec fallback texte
-✅ Formatage: Tables alignées et affichées correctement
-
-## Notes
-
-- **Dialogues**: Si la boîte de dialogue graphique échoue, l'application propose une saisie manuelle
-- **Encodage**: Tous les fichiers utilisent UTF-8 pour prendre en charge les caractères spéciaux
-- **Cross-platform**: Compatible Windows, Linux, macOS

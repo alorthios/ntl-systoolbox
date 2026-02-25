@@ -24,7 +24,7 @@ def display_banner():
     banner = """
 ╔══════════════════════════════════════════════════════════════╗
 ║                                                              ║
-║                   NTL-SysToolbox v2.0.0                      ║
+║                   NTL-SysToolbox v3.0.0                      ║
 ║                                                              ║
 ╚══════════════════════════════════════════════════════════════╝
     """
@@ -37,14 +37,9 @@ def display_main_menu():
     print("\n" + "="*64)
     print("MENU PRINCIPAL".center(64))
     print("="*64 + "\n")
-    print("  1. Module 1 - Statistiques Serveurs")
-    print("      (CPU, RAM, Disk, Uptime)")
-    print()
-    print("  2. Module 2 - Requêtes MySQL")
-    print("      (Base de données serveur)")
-    print()
-    print("  3. Module 3 - End of Life")
-    print("      (Informations de fin de vie)")
+    print("  1. Module 1 - Statistiques Serveurs (CPU, RAM, Disk, Uptime)")
+    print("  2. Module 2 - Requêtes MySQL (Base de données serveur)")
+    print("  3. Module 3 - End of Life (Informations de fin de vie)")
     print()
     print("  0. Quitter")
     print()

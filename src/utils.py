@@ -3,6 +3,7 @@ NTL-SysToolbox - Utilities
 Common functions and helpers for all modules
 """
 import os
+import re
 import tkinter as tk
 from tkinter import filedialog
 import paramiko
@@ -173,6 +174,22 @@ def format_bytes(bytes_value):
     return f"{bytes_value:.2f} PB"
 
 
+def format_file_size(filepath):
+    """
+    Retourne la taille formatée d'un fichier (KB ou MB)
+    
+    Args:
+        filepath: Chemin du fichier
+    
+    Retourne:
+        str: Taille formatée (ex: "1.50 KB" ou "2.34 MB")
+    """
+    file_size = os.path.getsize(filepath)
+    if file_size < 1024 * 1024:
+        return f"{file_size / 1024:.2f} KB"
+    return f"{file_size / (1024 * 1024):.2f} MB"
+
+
 def get_ssh_credentials(server_type='ubuntu'):
     """
     Charge les paramètres de connexion SSH depuis .env ou demande à l'utilisateur
@@ -193,7 +210,7 @@ def get_ssh_credentials(server_type='ubuntu'):
     
     # Si les infos sont dans .env (non vides), les utiliser
     if env_host and env_user and env_password:
-        print(f"\n[OK] Connexion avec infos de .env: {env_user}@{env_host}")
+        print(f"\nConnexion SSH en cours {env_user}@{env_host}")
         return {
             'hostname': env_host,
             'username': env_user,
@@ -271,3 +288,41 @@ def execute_ssh_command(client, command):
     except Exception as e:
         print(f"Erreur lors de l'exécution: {e}")
         return None
+
+
+# ============================================================================
+# Network Validation Functions
+# ============================================================================
+
+def validate_subnet(subnet):
+    """
+    Valide une plage réseau au format CIDR
+    
+    Format CIDR (Classless Inter-Domain Routing):
+    - XXX.XXX.XXX.XXX/NN
+    - XXX = octet IP (0-255)
+    - NN = masque de réseau (8-32 pour IPv4)
+    
+    Exemples valides:
+    - 192.168.1.0/24 (réseau local classique)
+    - 10.0.0.0/8 (réseau privé classe A)
+    - 172.16.0.0/12 (réseau privé classe B)
+    
+    Args:
+        subnet: Plage réseau en format CIDR
+    
+    Retourne:
+        bool: True si format CIDR valide, False sinon
+    """
+    # Expression régulière pour vérifier le format X.X.X.X/NN
+    cidr_pattern = r'^(\d{1,3}\.){3}\d{1,3}/\d{1,2}$'
+    if not re.match(cidr_pattern, subnet):
+        return False
+    
+    # Vérification que chaque octet est entre 0-255
+    ip_part = subnet.split('/')[0]
+    for octet in ip_part.split('.'):
+        if int(octet) > 255:
+            return False
+    
+    return True

@@ -2,50 +2,64 @@
 NTL-SysToolbox - Module 2: MySQL Database Management
 Gère la sauvegarde et l'export de données depuis MySQL
 """
-import pymysql
-from pymysql import Error
-import csv
 import os
 from datetime import datetime
-from pathlib import Path
-import sys
 
-# Ajouter le répertoire parent (racine du projet) au path pour importer config
-_project_root = Path(__file__).parent.parent
-if str(_project_root) not in sys.path:
-    sys.path.insert(0, str(_project_root))
-
-from config import MYSQL_CONFIG
-from .utils import get_destination_path
+from .utils import get_destination_path, get_ssh_credentials, ssh_connect, execute_ssh_command, format_file_size
 
 
 # ============================================================================
-# Database Connection Functions
+# Helper Functions
 # ============================================================================
 
-def get_mysql_connection():
+def select_database_interactive(client):
     """
-    Établit une connexion avec le serveur MySQL
+    Liste et permet à l'utilisateur de choisir une base de données
     
-    Utilise les paramètres définis dans config.py (MYSQL_CONFIG).
-    La syntaxe **MYSQL_CONFIG dépacke le dictionnaire en paramètres nommés.
+    Args:
+        client: Client SSH paramiko connecté
     
     Retourne:
-        pymysql.Connection: Connexion MySQL ou None si erreur de connexion
+        str: Nom de la base sélectionnée ou None si erreur/annulation
     """
-    try:
-        # Dépackage du dictionnaire: **MYSQL_CONFIG devient host=..., user=..., etc.
-        connection = pymysql.connect(**MYSQL_CONFIG)
-        return connection
-    except Error as err:
-        # Gestion des erreurs courantes de MySQL
-        if "Unknown MySQL server host" in str(err):
-            print(f"Erreur: Serveur introuvable: {MYSQL_CONFIG['host']}")
-        elif "Access denied" in str(err):
-            print(f"Erreur: Authentification échouée - vérifiez utilisateur/password")
-        else:
-            print(f"Erreur de connexion: {err}")
+    list_db_cmd = (
+        f"mysql -h {os.getenv('MYSQL_HOST', 'localhost')} "
+        f"-P {os.getenv('MYSQL_PORT', '3306')} "
+        f"-u {os.getenv('MYSQL_USER', 'root')} "
+        f"-p'{os.getenv('MYSQL_PASSWORD', '')}' "
+        f"-e 'SHOW DATABASES;' | tail -n +2"
+    )
+    
+    db_output = execute_ssh_command(client, list_db_cmd)
+    if not db_output:
+        print("Impossible de récupérer la liste des bases de données")
         return None
+    
+    # Filtrer les bases système
+    system_dbs = ['information_schema', 'performance_schema', 'mysql', 'sys']
+    databases = [db.strip() for db in db_output.split('\n') 
+                 if db.strip() and db.strip() not in system_dbs]
+    
+    if not databases:
+        print("Aucune base de données utilisateur trouvée")
+        return None
+    
+    # Afficher les bases disponibles
+    print("\nBases de données disponibles :")
+    for i, db in enumerate(databases, 1):
+        print(f"  {i}. {db}")
+    
+    choice = input("\nChoisir une base de données (numéro): ").strip()
+    
+    try:
+        choice_idx = int(choice) - 1
+        if 0 <= choice_idx < len(databases):
+            return databases[choice_idx]
+        print("Choix invalide")
+    except ValueError:
+        print("Entrée invalide")
+    
+    return None
 
 
 # ============================================================================
@@ -58,12 +72,12 @@ def display_menu():
     print("MODULE 2 - REQUÊTES MYSQL".center(64))
     print("="*64 + "\n")
     print("  1. Sauvegarder la base de données (SQL)")
-    print()
     print("  2. Exporter une table (CSV)")
     print()
     print("  0. Retour au menu principal")
     print()
     print("="*64)
+    print()
 
 
 # ============================================================================
@@ -72,117 +86,106 @@ def display_menu():
 
 def backup_database():
     """
-    Sauvegarde complète de la base de données au format SQL
+    Sauvegarde complète de la base de données au format SQL via SSH + mysqldump
     
-    Crée un fichier .sql contenant:
-    - Commentaires avec métadonnées (base, timestamp)
-    - La commande USE pour sélectionner la base de données
-    - Pour chaque table:
-      * DROP TABLE IF EXISTS (permet recréer/restore sans conflit)
-      * CREATE TABLE (structure complète)
-      * INSERT INTO (données avec typage correct)
+    Utilise mysqldump sur le serveur distant via SSH pour créer un fichier .sql contenant:
+    - La structure complète (CREATE TABLE)
+    - Toutes les données (INSERT)
+    - Les vues, triggers, procédures stockées
     
-    Stratégie de typage dans les INSERT:
-    - Nombres (INT, FLOAT, DECIMAL, etc.): sans guillemets
-    - Chaînes: avec guillemets simples, apostrophes échappées
-    - NULL: mot-clé NULL sans guillemets
+    Avantages de mysqldump:
+    - Outil natif MySQL optimisé
+    - Gère automatiquement tous les types de données
+    - Support des fonctionnalités avancées (vues, triggers, etc.)
+    - Plus rapide et fiable que la reconstruction manuelle
     """
-    print("\nPréparation de la sauvegarde...")
+    # Afficher le titre
+    print("\n" + "="*64)
+    print("SAUVEGARDE DE LA BASE DE DONNÉES (SQL)".center(64))
+    print("="*64 + "\n")
     
-    # Étape 1: Sélectionner le dossier de destination
-    print("Choix du dossier de sauvegarde SQL ...")
-    user_path = get_destination_path("Choix du dossier de sauvegarde SQL ...")
-    if not user_path:
-        return
+    # Étape 1: Établir la connexion SSH au serveur Linux (où MySQL tourne)
+    creds = get_ssh_credentials(server_type='ubuntu')
+    client = ssh_connect(creds['hostname'], creds['username'], creds['password'], creds['port'])
     
-    # Étape 2: Générer le nom du fichier avec timestamp
-    # Format: nombase_backup_YYYYMMDD_HHMMSS.sql
-    # Le timestamp évite les doublons si multiples sauvegardes
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename = f"{MYSQL_CONFIG['database']}_backup_{timestamp}.sql"
-    filepath = os.path.join(user_path, filename)
-    
-    # Étape 3: Établir la connexion MySQL
-    connection = get_mysql_connection()
-    if not connection:
+    if not client:
+        print("Échec de la connexion SSH")
         return
     
     try:
-        cursor = connection.cursor()
-        
-        # Étape 4: Récupérer la liste de toutes les tables de la base
-        cursor.execute("SHOW TABLES")
-        tables = cursor.fetchall()
-        
-        if not tables:
-            print(f"Aucune table trouvée")
+        # Étape 2: Sélectionner une base de données
+        selected_db = select_database_interactive(client)
+        if not selected_db:
             return
         
-        # Étape 5: Créer et remplir le fichier SQL
-        with open(filepath, 'w', encoding='utf-8') as f:
-            # En-tête SQL: commentaires avec information de sauvegarde
-            f.write(f"-- Sauvegarde de {MYSQL_CONFIG['database']}\n")
-            f.write(f"-- {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
-            # La commande USE sélectionne la base (utile pour restaurer sur autre serveur)
-            f.write(f"USE {MYSQL_CONFIG['database']};\n\n")
+        # Étape 3: Sélectionner le dossier de destination local
+        print("\nChoix du dossier de sauvegarde SQL ...")
+        user_path = get_destination_path("Choix du dossier de sauvegarde SQL ...")
+        if not user_path:
+            return
+        
+        # Étape 5: Générer le nom du fichier avec timestamp
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"{selected_db}_backup_{timestamp}.sql"
+        filepath = os.path.join(user_path, filename)
+        remote_filepath = f"/tmp/{filename}"
+        
+        # Étape 6: Exécuter mysqldump sur le serveur distant
+        print(f"\nCréation du dump MySQL de '{selected_db}'...")
+        
+        # Construction de la commande mysqldump avec options
+        # --single-transaction: pour éviter les locks (InnoDB)
+        # --routines: inclut les procédures stockées et fonctions
+        # --triggers: inclut les triggers
+        # --events: inclut les événements planifiés
+        dump_cmd = (
+            f"mysqldump "
+            f"-h {os.getenv('MYSQL_HOST', 'localhost')} "
+            f"-P {os.getenv('MYSQL_PORT', '3306')} "
+            f"-u {os.getenv('MYSQL_USER', 'root')} "
+            f"-p'{os.getenv('MYSQL_PASSWORD', '')}' "
+            f"--single-transaction "
+            f"--routines "
+            f"--triggers "
+            f"--events "
+            f"{selected_db} > {remote_filepath}"
+        )
+        
+        execute_ssh_command(client, dump_cmd)
+        
+        # Vérifier si le fichier a été créé sur le serveur distant
+        check_cmd = f"test -f {remote_filepath} && echo 'OK' || echo 'ERROR'"
+        check_result = execute_ssh_command(client, check_cmd)
+        
+        if check_result and check_result.strip() == 'OK':
+            print("Dump créé avec succès sur le serveur distant")
             
-            # Boucle sur chaque table pour la sauvegarder
-            for (table_name,) in tables:
-                # DROP TABLE IF EXISTS: supprime la table si elle existe
-                # Évite les erreurs lors du restore si table existe déjà
-                f.write(f"DROP TABLE IF EXISTS `{table_name}`;\n\n")
-                
-                # Récupère et écrit la définition structurelle de la table (CREATE TABLE)
-                cursor.execute(f"SHOW CREATE TABLE {table_name}")
-                create_table = cursor.fetchone()[1]
-                f.write(f"{create_table};\n\n")
-                
-                # Récupère les types de colonnes pour formater correctement les INSERT
-                # Exemple: col_id=INT, col_name=VARCHAR, col_price=DECIMAL, etc.
-                cursor.execute(f"DESCRIBE {table_name}")
-                column_info = cursor.fetchall()
-                column_types = {col[0]: col[1].lower() for col in column_info}
-                columns = [col[0] for col in column_info]
-                
-                # Récupère toutes les données de la table
-                cursor.execute(f"SELECT * FROM {table_name}")
-                data = cursor.fetchall()
-                
-                # Génère les instructions INSERT avec typage correct
-                for row in data:
-                    formatted_values = []
-                    # Traite chaque colonne de chaque ligne
-                    for col_name, val in zip(columns, row):
-                        if val is None:
-                            # NULL n'a pas de guillemets
-                            formatted_values.append('NULL')
-                        else:
-                            col_type = column_types[col_name]
-                            # Nombres: pas de guillemets
-                            if any(num_type in col_type for num_type in ['int', 'float', 'double', 'decimal']):
-                                formatted_values.append(str(val))
-                            else:
-                                # Chaînes: guillemets + échappement des apostrophes
-                                escaped_val = str(val).replace("'", "''")
-                                formatted_values.append(f"'{escaped_val}'")
-                    
-                    # Écrit la ligne INSERT
-                    values_str = ', '.join(formatted_values)
-                    f.write(f"INSERT INTO `{table_name}` VALUES ({values_str});\n")
-                
-                # Ligne vide entre les tables pour meilleure lisibilité
-                f.write("\n")
-        
-        # Affichage du succès
-        print(f"Sauvegarde réussie")
-        print(f"   Fichier: {filepath}")
-        
-    except Error as err:
-        print(f"Erreur lors de la sauvegarde: {err}")
+            # Étape 7: Récupérer le fichier via SFTP
+            print("Téléchargement du fichier SQL...")
+            sftp = client.open_sftp()
+            sftp.get(remote_filepath, filepath)
+            sftp.close()
+            
+            # Étape 8: Nettoyer le fichier temporaire sur le serveur
+            execute_ssh_command(client, f"rm -f {remote_filepath}")
+            
+            # Affichage du succès
+            print(f"\nSauvegarde réussie")
+            print(f"   Base de données: {selected_db}")
+            print(f"   Taille: {format_file_size(filepath)}")
+            print(f"   Fichier: {filepath}")
+            print("\n" + "="*64)
+        else:
+            print(f"Erreur lors de la création du dump sur le serveur distant")
+            # Afficher les erreurs éventuelles
+            error_output = execute_ssh_command(client, f"cat {remote_filepath} 2>&1 || echo 'Pas de fichier'")
+            if error_output:
+                print(f"Sortie d'erreur: {error_output}")
+    
+    except Exception as e:
+        print(f"Erreur lors de la sauvegarde: {e}")
     finally:
-        # Toujours fermer la connexion, même en cas d'erreur
-        cursor.close()
-        connection.close()
+        client.close()
 
 
 # ============================================================================
@@ -194,41 +197,63 @@ def export_table():
     Exporte une table sélectionnée au format CSV
     
     Étapes:
-    1. Récupère la liste de toutes les tables disponibles
-    2. Affiche et demande à l'utilisateur de choisir une table
-    3. Demande le dossier de destination
-    4. Exporte les données avec en-têtes de colonnes
+    1. Établit connexion SSH et liste les bases de données
+    2. Utilisateur choisit une base de données
+    3. Liste les tables de cette base
+    4. Utilisateur choisit une table
+    5. Exporte les données avec en-têtes de colonnes
     
     Format CSV:
     - Séparateur: ; (point-virgule) pour compatibilité Excel français
     - Encodage: UTF-8 avec BOM pour compatibilité Windows
     - Saut de lignes: géré correctement selon le système d'exploitation
     """
-    print("\nRécupération des tables...")
+    # Afficher le titre
+    print("\n" + "="*64)
+    print("SÉLECTION DE LA BASE DE DONNÉES".center(64))
+    print("="*64 + "\n")
     
-    # Étape 1: Établir la connexion MySQL
-    connection = get_mysql_connection()
-    if not connection:
+    # Étape 1: Établir la connexion SSH
+    creds = get_ssh_credentials(server_type='ubuntu')
+    client = ssh_connect(creds['hostname'], creds['username'], creds['password'], creds['port'])
+    
+    if not client:
+        print("Échec de la connexion SSH")
         return
     
     try:
-        cursor = connection.cursor()
-        
-        # Étape 2: Récupérer la liste de toutes les tables de la base
-        cursor.execute("SHOW TABLES")
-        tables = [table[0] for table in cursor.fetchall()]
-        
-        if not tables:
-            print(f"Aucune table trouvée")
+        # Étape 2: Sélectionner une base de données
+        selected_db = select_database_interactive(client)
+        if not selected_db:
             return
         
-        # Étape 3: Afficher les tables disponibles pour que l'utilisateur choisisse
-        print("\nTables disponibles")
-        for i, table in enumerate(tables, 1):
-            db_prefix = f"{MYSQL_CONFIG['database']}."
-            print(f"  {i}. {db_prefix}{table}")
+        # Étape 3: Lister les tables de la base sélectionnée
+        list_tables_cmd = (
+            f"mysql -h {os.getenv('MYSQL_HOST', 'localhost')} "
+            f"-P {os.getenv('MYSQL_PORT', '3306')} "
+            f"-u {os.getenv('MYSQL_USER', 'root')} "
+            f"-p'{os.getenv('MYSQL_PASSWORD', '')}' "
+            f"{selected_db} -e 'SHOW TABLES;' | tail -n +2"
+        )
         
-        # Étape 4: Demander à l'utilisateur de sélectionner une table
+        tables_output = execute_ssh_command(client, list_tables_cmd)
+        
+        if not tables_output:
+            print(f"Aucune table trouvée dans la base {selected_db}")
+            return
+        
+        tables = [table.strip() for table in tables_output.split('\n') if table.strip()]
+        
+        if not tables:
+            print(f"Aucune table trouvée dans la base {selected_db}")
+            return
+        
+        # Étape 5: Afficher les tables disponibles
+        print(f"\nTables disponibles dans '{selected_db}' :")
+        for i, table in enumerate(tables, 1):
+            print(f"  {i}. {table}")
+        
+        # Étape 6: Demander à l'utilisateur de sélectionner une table
         try:
             choice = int(input("\nChoisir une table (numéro): "))
             if choice < 1 or choice > len(tables):
@@ -239,48 +264,66 @@ def export_table():
             print("Entrée invalide")
             return
         
-        # Étape 5: Demander le chemin de destination
+        # Étape 7: Demander le chemin de destination
         print("\nChoix du dossier d'export CSV ...")
         user_path = get_destination_path("Choix du dossier d'export CSV ...")
         if not user_path:
             return
         
-        # Étape 6: Générer le nom du fichier avec timestamp
+        # Étape 8: Générer le nom du fichier avec timestamp
         # Format: nombase_nomtable_YYYYMMDD_HHMMSS.csv
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"{MYSQL_CONFIG['database']}_{selected_table}_{timestamp}.csv"
+        filename = f"{selected_db}_{selected_table}_{timestamp}.csv"
         filepath = os.path.join(user_path, filename)
+        remote_temp_file = f"/tmp/{filename}"
         
-        # Étape 7: Récupérer les données de la table
-        cursor.execute(f"SELECT * FROM {selected_table}")
-        rows = cursor.fetchall()
+        # Étape 9: Exporter via mysql client en SSH (streaming, pas de limite mémoire)
+        print(f"Export de la table {selected_db}.{selected_table} en cours...")
         
-        # Étape 8: Récupérer les noms des colonnes
-        cursor.execute(f"DESCRIBE {selected_table}")
-        columns = [col[0] for col in cursor.fetchall()]
+        # Commande mysql qui exporte directement en CSV sur le serveur
+        export_cmd = (
+            f"mysql -h {os.getenv('MYSQL_HOST', 'localhost')} "
+            f"-P {os.getenv('MYSQL_PORT', '3306')} "
+            f"-u {os.getenv('MYSQL_USER', 'root')} "
+            f"-p'{os.getenv('MYSQL_PASSWORD', '')}' "
+            f"{selected_db} "
+            f"-e 'SELECT * FROM {selected_table}' "
+            f"| sed 's/\\t/;/g' > {remote_temp_file}"
+        )
         
-        # Étape 9: Écrire le fichier CSV
-        # encoding='utf-8-sig': ajoute BOM (Byte Order Mark) pour Excel Windows
-        # delimiter=';': utilise point-virgule pour compatibilité Excel français
-        # newline='': gère correctement les sauts de ligne cross-platform
-        with open(filepath, 'w', newline='', encoding='utf-8-sig') as f:
-            writer = csv.writer(f, delimiter=';')
-            # Première ligne: en-têtes de colonnes
-            writer.writerow(columns)
-            # Lignes suivantes: données
-            writer.writerows(rows)
+        execute_ssh_command(client, export_cmd)
+        
+        # Étape 10: Transférer le fichier via SFTP
+        sftp = client.open_sftp()
+        sftp.get(remote_temp_file, filepath)
+        sftp.close()
+        
+        # Étape 11: Nettoyer le fichier temporaire sur le serveur
+        execute_ssh_command(client, f"rm -f {remote_temp_file}")
+        
+        # Étape 12: Compter les lignes exportées (hors en-tête)
+        with open(filepath, 'r', encoding='utf-8') as f:
+            line_count = sum(1 for _ in f) - 1  # -1 pour l'en-tête
+        
+        # Étape 13: Convertir en UTF-8 avec BOM pour Excel Windows
+        with open(filepath, 'r', encoding='utf-8') as f:
+            content = f.read()
+        with open(filepath, 'w', encoding='utf-8-sig') as f:
+            f.write(content)
         
         # Affichage du succès
-        print(f"Export réussi")
-        print(f"   Table: {selected_table} ({len(rows)} lignes)")
+        print(f"\nExport réussi")
+        print(f"   Table: {selected_db}.{selected_table} ({line_count} lignes)")
+        print(f"   Taille: {format_file_size(filepath)}")
         print(f"   Fichier: {filepath}")
+        print("\n" + "="*64)
         
-    except Error as err:
+    except Exception as err:
         print(f"Erreur lors de l'export: {err}")
     finally:
-        # Toujours fermer la connexion, même en cas d'erreur
-        cursor.close()
-        connection.close()
+        # Toujours fermer la connexion SSH
+        if 'client' in locals():
+            client.close()
 
 
 # ============================================================================
