@@ -32,21 +32,27 @@
 - Consultation des dates de fin de support (API endoflife.date)
 - Enrichissement de fichiers CSV avec informations EOL
 
-## Prérequis
+## Prérequis Généraux
 
-### Système
-- **Python 3.7+**
-- **nmap** (pour le scan réseau du Module 3)
+### Connectivité
+- **Accès SSH** configuré sur les serveurs Windows et Linux distants
+- **MySQL/MariaDB** installé et accessible sur le serveur Linux
+- **Active Directory** et **DNS** configurés sur Windows Server
+
+## Installation
+
+Choisissez la méthode qui vous convient le mieux :
+
+### Option 1️⃣ - Installation Classique (Native Python)
+
+**Prérequis spécifiques:**
+- Python 3.7+
+- nmap installé sur votre système
   - Windows: [Télécharger depuis nmap.org](https://nmap.org/download.html)
   - Linux: `sudo apt-get install nmap`
   - macOS: `brew install nmap`
 
-### Serveurs distants
-- **Accès SSH** configuré sur les serveurs Windows et Linux
-- **MySQL/MariaDB** installé et accessible sur le serveur Linux (Module 2)
-- **Active Directory** et **DNS** configurés sur Windows Server (Module 1)
-
-## Installation
+**Étapes:**
 
 1. **Cloner le dépôt:**
 ```bash
@@ -54,60 +60,102 @@ git clone https://github.com/alorthios/ntl-systoolbox.git
 cd ntl-systoolbox
 ```
 
-2. **Créer l'environnement virtuel:**
+2. **Créer et activer l'environnement virtuel:**
 ```bash
 python -m venv venv
 ```
-
-3. **Activer l'environnement virtuel:**
    - **Windows**: `venv\Scripts\activate`
    - **Linux/Mac**: `source venv/bin/activate`
 
-4. **Installer les dépendances:**
+3. **Installer les dépendances:**
 ```bash
 pip install -r requirements.txt
 ```
 
-## Configuration
-## Configuration
+4. **Créer le fichier de configuration (voir section Configuration ci-dessous)**
 
-Créer un fichier `.env` à la racine du projet (utiliser `.env.example` comme modèle) :
-
+5. **Lancer l'application:**
 ```bash
-cp .env.example .env
+python -m src.main
 ```
 
-Éditer le fichier `.env` avec vos paramètres :
+---
 
+### Option 2️⃣ - Installation Docker
+
+**Prérequis spécifiques:**
+- Docker installé
+- Docker Compose installé
+
+**Étapes:**
+
+1. **Créer le fichier de configuration (voir section Configuration ci-dessous)**
+
+2. **Créer le fichier `docker-compose.yml` avec le contenu suivant :**
+```yaml
+services:
+  ntl-systoolbox:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ntl-systoolbox:3.1.0
+    container_name: ntl-systoolbox
+
+    # Mode réseau
+    network_mode: bridge
+
+    # Volumes
+    volumes:
+      # Bind mount pour le fichier .env (depuis l'hôte)
+      - ./.env:/app/.env
+      # Volume nommé pour les exports
+      - exports-volume:/app/exports
+
+# Définir le volume nommé
+volumes:
+  exports-volume:
+    driver: local
+```
+
+3. **Lancer l'application:**
+```bash
+docker compose run --rm ntl-systoolbox
+```
+
+Les exports (fichiers CSV) seront stockés dans le volume Docker `exports-volume`.
+
+---
+
+## Configuration
+
+Les deux méthodes d'installation utilisent un fichier `.env` pour stocker les identifiants.
+
+**Créer le fichier `.env` avec vos paramètres, exemple:**
 ```env
-# MySQL Configuration (Module 2)
-MYSQL_HOST=192.168.100.21
-MYSQL_USER=votre_user
-MYSQL_PASSWORD=votre_password
-MYSQL_PORT=3306
-
-# Linux Server (Module 1 & 2)
+# Configuration serveur Linux
 LINUX_SERVER_HOST=192.168.100.21
-LINUX_SERVER_USER=votre_user
-LINUX_SERVER_PASSWORD=votre_password
+LINUX_SERVER_USER=votre_utilisateur
+LINUX_SERVER_PASSWORD=votre_mot_de_passe
 LINUX_SERVER_PORT=22
 
-# Windows Server (Module 1)
+# Configuration serveur Windows 
 WINDOWS_SERVER_HOST=192.168.100.10
 WINDOWS_SERVER_USER=Administrateur
-WINDOWS_SERVER_PASSWORD=votre_password
+WINDOWS_SERVER_PASSWORD=votre_mot_de_passe
 WINDOWS_SERVER_PORT=22
+
+# Configuration MySQL
+MYSQL_HOST=192.168.100.21
+MYSQL_USER=votre_utilisateur
+MYSQL_PASSWORD=votre_mot_de_passe
+MYSQL_PORT=3306
 ```
 
 **Note:** Si le fichier `.env` n'est pas configuré, l'application demandera les informations de connexion de manière interactive.
 
 ## Utilisation
 
-```bash
-python -m src.main
-```
-
-L'application affiche un menu interactif avec 3 modules.
+L'application affiche un menu interactif permettant d'accéder aux 3 modules disponibles.
 
 ## Modules
 

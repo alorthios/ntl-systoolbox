@@ -1,0 +1,22 @@
+services:
+  ntl-systoolbox:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ntl-systoolbox:3.1.0
+    container_name: ntl-systoolbox
+    
+    # Mode réseau
+    network_mode: bridge
+    
+    # Volumes
+    volumes:
+      # Bind mount pour le fichier .env (depuis l'hôte)
+      - ./.env:/app/.env
+      # Volume nommé pour les exports
+      - exports-volume:/app/exports
+    
+# Définir le volume nommé
+volumes:
+  exports-volume:
+    driver: local
