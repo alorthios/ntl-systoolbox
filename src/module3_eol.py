@@ -397,6 +397,9 @@ def determine_status(eol_date):
     """
     if eol_date is None:
         return "Statut inconnu"
+
+    if isinstance(eol_date, bool):
+        return "Support actif" if eol_date is False else "Statut inconnu"
     
     if isinstance(eol_date, str):
         return "Support actif" if eol_date == "False" else str(eol_date)
@@ -456,7 +459,7 @@ def process_csv_file(input_file, output_file):
                 status = determine_status(eol_date)
                 
                 # Formater la date EOL pour la sortie
-                eol_str = str(eol_date) if eol_date is not None else "N/A"
+                eol_str = "N/A" if (eol_date is None or eol_date is False) else str(eol_date)
                 
                 results.append({
                     'nom': nom,
