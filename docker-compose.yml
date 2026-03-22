@@ -1,22 +1,19 @@
 services:
   ntl-systoolbox:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    image: ntl-systoolbox:3.1.0
+    image: alorthios/ntl-systoolbox:3.1.0
     container_name: ntl-systoolbox
     
-    # Mode réseau
-    network_mode: bridge
+    # Mode réseau : host pour accès réseau direct (nmap)
+    network_mode: host
+    
+    # Capacités pour nmap (raw sockets)
+    cap_add:
+      - NET_RAW
+      - NET_ADMIN
     
     # Volumes
     volumes:
       # Bind mount pour le fichier .env (depuis l'hôte)
       - ./.env:/app/.env
-      # Volume nommé pour les exports
-      - exports-volume:/app/exports
-    
-# Définir le volume nommé
-volumes:
-  exports-volume:
-    driver: local
+      # Bind mount pour les exports (dans le dossier local)
+      - ./exports:/app/exports

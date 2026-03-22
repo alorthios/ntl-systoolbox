@@ -54,9 +54,9 @@ def get_file_path(title="Sélectionner un fichier", filetypes=None):
         
         return file_path
     except:
-        # Fallback: lister les fichiers du répertoire courant
+        # Fallback: lister les fichiers du répertoire /app/exports
         print("Boîte de dialogue indisponible, liste des fichiers disponibles...")
-        current_dir = os.getcwd()
+        current_dir = "/app/exports"
         
         # Extraire les extensions à chercher depuis filetypes
         extensions = []

@@ -67,3 +67,7 @@ htmlcov/
 .venv
 pip-log.txt
 pip-delete-this-directory.txt
+
+# Exports directory
+exports/
+exports
