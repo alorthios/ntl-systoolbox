@@ -44,7 +44,7 @@ def get_file_path(title="Sélectionner un fichier", filetypes=None):
         file_path = filedialog.askopenfilename(
             title=title,
             filetypes=filetypes,
-            initialdir=os.path.expanduser("~")
+            initialdir="/app/exports"
         )
         root.destroy()
         
@@ -54,9 +54,9 @@ def get_file_path(title="Sélectionner un fichier", filetypes=None):
         
         return file_path
     except:
-        # Fallback: lister les fichiers du répertoire courant
+        # Fallback: lister les fichiers du répertoire /app/exports
         print("Boîte de dialogue indisponible, liste des fichiers disponibles...")
-        current_dir = os.getcwd()
+        current_dir = "/app/exports"
         
         # Extraire les extensions à chercher depuis filetypes
         extensions = []
@@ -122,7 +122,7 @@ def get_destination_path(title="Choix du dossier de destination ..."):
     Retourne:
         str: Chemin valide ou None si annulé
     """
-    default_path = os.path.expanduser("~/Downloads")
+    default_path = "/app/exports"
     
     try:
         root = _create_dialog_root()
